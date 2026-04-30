@@ -108,7 +108,7 @@ flowchart TD
 
 ## Key Decisions
 
-- **Use DeepSeek directly instead of AWS Bedrock or API from Claude, OpenAI or Gemini.** Enable a foundation model from AWS Bedrock Marketplace adds unnecessary complexities for this built. DeepSeek's OpenAI-compatible endpoint made the demo buildable in one evening and it's a lot cheaper than the API from the top 3 frontier AI labs.
+- **Use DeepSeek directly instead of AWS Bedrock or APIs from Claude, OpenAI, or Gemini.** Bedrock model access added unnecessary complexity for this prototype, while DeepSeek's OpenAI-compatible endpoint made the demo buildable in one evening at a much lower cost.
 - **Keep embeddings local.** `sentence-transformers` with `BAAI/bge-small-en-v1.5` is enough for this tiny corpus and avoids paying an external provider for every embedding call.
 - **Use a local NumPy index.** There are only a handful of PDFs. A vector database would add operational complexity without improving the demo.
 - **Use contextual retrieval only at ingest.** Generated context helps search, but final answers and citation checks use source text only.
