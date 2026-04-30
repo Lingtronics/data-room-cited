@@ -4,5 +4,6 @@ __pycache__/
 .pytest_cache/
 .streamlit/secrets.toml
 .env
+data/*.pdf
 index/*.json
 index/*.npy

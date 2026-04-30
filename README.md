@@ -11,7 +11,7 @@ Prerequisites:
 - Windows PowerShell
 - Python 3.11+ available for creating the virtual environment
 - A DeepSeek API key
-- The five Meridian PDFs in `data/`
+- Local PDF files placed in `data/`. The public repo keeps this folder empty and ignores `data/*.pdf`.
 
 Create and activate the local environment:
 
@@ -146,11 +146,7 @@ flowchart TD
 |-- README.md
 |-- .env.example
 |-- data/                          # Source PDFs
-|   |-- 01_Meridian_Analytics_Company_Overview.pdf
-|   |-- 02_Meridian_Financials_Summary.pdf
-|   |-- 03_Meridian_Market_Landscape.pdf
-|   |-- 04_Meridian_Key_Contracts_Summary.pdf
-|   `-- 05_Meridian_Management_Presentation_Excerpt.pdf
+|   `-- .gitkeep                  # PDFs are local-only and ignored by Git
 |-- docs/
 |   `-- consultant_stress_tests.md
 |-- index/                         # Generated local index
