@@ -1,0 +1,7 @@
+pdfplumber
+pydantic
+numpy
+python-dotenv
+streamlit
+openai
+sentence-transformers
