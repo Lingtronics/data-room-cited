@@ -4,6 +4,10 @@ Data Room Cited is a focused RAG prototype for commercial due diligence. It help
 
 The goal is not to automate diligence. The goal is to speed up the first pass through a data room while keeping the system honest about source coverage, missing evidence, and citation quality.
 
+## Demo
+
+[Watch the demo video](https://github.com/user-attachments/assets/a6287247-a55b-4740-93e6-9a4957c42f48)
+
 ## How To Run
 
 Prerequisites:
