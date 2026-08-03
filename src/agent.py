@@ -35,6 +35,10 @@ AGENT_TOOL_SPECS = [
                         "type": "integer",
                         "description": "Number of chunks to return, capped by the tool.",
                     },
+                    "semantic": {
+                        "type": "boolean",
+                        "description": "Use semantic vector search when true; lexical search when false.",
+                    },
                 },
                 "required": ["query"],
                 "additionalProperties": False,

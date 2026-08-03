@@ -66,6 +66,20 @@ Run the MCP server over stdio for an MCP-compatible client:
 .\.venv\Scripts\python.exe scripts\mcp_server.py
 ```
 
+Validate the MCP server with MCP Inspector. On a machine with Node/npm on PATH, use:
+
+```powershell
+npx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe scripts\mcp_server.py --method tools/list --format json
+```
+
+In this workspace, global `npx` was not available, so the tested command used `pnpm dlx` with Node on `PATH`:
+
+```powershell
+pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe scripts\mcp_server.py --method tools/list --format json
+```
+
+For `search_data_room`, the Inspector smoke test below uses `semantic=false` so the one-shot MCP process does not spend the request window cold-loading the local embedding model. The app and agent still use semantic retrieval by default.
+
 Run the Streamlit UI:
 
 ```powershell
@@ -136,12 +150,24 @@ flowchart TD
 
 ## MCP And Agent Layer
 
+The server uses the documented Python SDK `FastMCP` API:
+
+```python
+from mcp.server.fastmcp import FastMCP
+```
+
+The validated SDK dependency is pinned as:
+
+```text
+mcp[cli]==1.29.0
+```
+
 The MCP layer turns the app's reliable internal capabilities into callable tools:
 
 | Tool | Purpose |
 |---|---|
 | `list_documents` | Show PDFs in `data/` and whether each has indexed chunks |
-| `search_data_room` | Run local semantic retrieval over the saved index |
+| `search_data_room` | Run local semantic retrieval over the saved index; pass `semantic=false` for a quick lexical Inspector smoke test |
 | `get_chunk` | Open one source chunk by `chunk_id` |
 | `verify_citation` | Check that a quote appears in original source text for a chunk |
 | `get_document_coverage` | Report indexed coverage and OCR/staleness warnings |
@@ -150,6 +176,83 @@ The MCP layer turns the app's reliable internal capabilities into callable tools
 | `enterprise_connector_plan` | Document the planned SharePoint, Box, and CRM connector boundary |
 
 The optional agent loop in `src/agent.py` uses DeepSeek tool calling over the same tool layer. It is intentionally separate from `src/rag.py`, so the original deterministic RAG flow remains available for the Streamlit UI and CLI.
+
+### Inspector Smoke-Test Samples
+
+Tool discovery returned all eight registered tools:
+
+```json
+{
+  "tools": [
+    "list_documents",
+    "search_data_room",
+    "get_chunk",
+    "verify_citation",
+    "get_document_coverage",
+    "rebuild_index",
+    "export_powerpoint_outline",
+    "enterprise_connector_plan"
+  ]
+}
+```
+
+`search_data_room` was called through Inspector in quick lexical mode:
+
+```powershell
+pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe scripts\mcp_server.py --method tools/call --tool-name search_data_room --tool-arg query="contract risks" --tool-arg top_k=2 --tool-arg semantic=false --format json
+```
+
+Sample response:
+
+```json
+{
+  "query": "contract risks",
+  "top_k": 2,
+  "mode": "lexical",
+  "results": [
+    {
+      "chunk_id": "01_Meridian_Analytics_Company_Overview-0001",
+      "source": "01_Meridian_Analytics_Company_Overview.pdf pp.1-2, 4. Customers and commercial model",
+      "score": 1.0
+    }
+  ]
+}
+```
+
+`get_chunk` was called through Inspector:
+
+```powershell
+pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe scripts\mcp_server.py --method tools/call --tool-name get_chunk --tool-arg chunk_id=04_Meridian_Key_Contracts_Summary-0000 --format json
+```
+
+Sample response:
+
+```json
+{
+  "found": true,
+  "chunk": {
+    "chunk_id": "04_Meridian_Key_Contracts_Summary-0000",
+    "source": "04_Meridian_Key_Contracts_Summary.pdf p.1, Key Contracts Summary"
+  }
+}
+```
+
+`verify_citation` was called through Inspector:
+
+```powershell
+pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe scripts\mcp_server.py --method tools/call --tool-name verify_citation --tool-arg chunk_id=04_Meridian_Key_Contracts_Summary-0000 --tool-arg quote="Together these account for 61% of total ARR." --format json
+```
+
+Sample response:
+
+```json
+{
+  "verified": true,
+  "reason": "verified",
+  "chunk_id": "04_Meridian_Key_Contracts_Summary-0000",
+  "source": "04_Meridian_Key_Contracts_Summary.pdf p.1, Key Contracts Summary"
+}
+```
 
 
 ## What It Deliberately Doesn't Do

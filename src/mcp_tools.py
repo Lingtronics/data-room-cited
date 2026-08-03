@@ -41,10 +41,21 @@ def list_documents() -> dict[str, Any]:
     }
 
 
-def search_data_room(query: str, top_k: int | None = None) -> dict[str, Any]:
+def search_data_room(query: str, top_k: int | None = None, semantic: bool = True) -> dict[str, Any]:
     settings = Settings.from_env()
     chunks, embeddings = load_index(settings.index_dir)
     selected_top_k = _clamp_top_k(top_k or settings.top_k)
+    if not semantic:
+        results = _lexical_search(query, chunks, selected_top_k)
+        return {
+            "query": query,
+            "top_k": selected_top_k,
+            "mode": "lexical",
+            "results": [
+                _chunk_payload(chunk, score=score, include_text=True) for chunk, score in results
+            ],
+        }
+
     query_embedding = embed_one(query)
     results = retrieve(
         query_embedding=query_embedding,
@@ -55,6 +66,7 @@ def search_data_room(query: str, top_k: int | None = None) -> dict[str, Any]:
     return {
         "query": query,
         "top_k": selected_top_k,
+        "mode": "semantic",
         "results": [
             _chunk_payload(chunk, score=score, include_text=True) for chunk, score in results
         ],
@@ -224,6 +236,25 @@ def _chunk_by_id(chunk_id: str) -> Chunk | None:
     settings = Settings.from_env()
     chunks = _load_chunks_or_empty(settings)
     return next((chunk for chunk in chunks if chunk.chunk_id == chunk_id), None)
+
+
+def _lexical_search(query: str, chunks: list[Chunk], top_k: int) -> list[tuple[Chunk, float]]:
+    query_terms = _terms(query)
+    if not query_terms:
+        return []
+    query_counts = Counter(query_terms)
+    scored: list[tuple[int, Chunk, float]] = []
+    for index, chunk in enumerate(chunks):
+        chunk_terms = Counter(_terms(f"{chunk.source_label} {chunk.text}"))
+        score = sum(min(count, chunk_terms.get(term, 0)) for term, count in query_counts.items())
+        if score:
+            scored.append((index, chunk, float(score)))
+    scored.sort(key=lambda item: (-item[2], item[0]))
+    return [(chunk, score) for _, chunk, score in scored[:top_k]]
+
+
+def _terms(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9£$%]+", text.lower())
 
 
 def _chunk_payload(
