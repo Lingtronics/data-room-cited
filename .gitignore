@@ -7,3 +7,6 @@ __pycache__/
 data/*.pdf
 index/*.json
 index/*.npy
+exports/*.md
+exports/*.txt
+!exports/.gitkeep

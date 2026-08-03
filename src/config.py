@@ -43,6 +43,7 @@ EMBEDDING_DIMENSIONS = _int_from_env("EMBEDDING_DIMENSIONS", 384)
 
 DATA_DIR = _path_from_env("DATA_DIR", "data")
 INDEX_DIR = _path_from_env("INDEX_DIR", "index")
+EXPORT_DIR = _path_from_env("EXPORT_DIR", "exports")
 CHUNKS_PATH = INDEX_DIR / "chunks.json"
 EMBEDDINGS_PATH = INDEX_DIR / "embeddings.npy"
 
@@ -54,8 +55,10 @@ CHUNK_OVERLAP_CHARS = _int_from_env("CHUNK_OVERLAP_CHARS", _int_from_env("CHUNK_
 RERANK_ENABLED = _bool_from_env("RERANK_ENABLED", True)
 CONTEXTUAL_RETRIEVAL_ENABLED = _bool_from_env("CONTEXTUAL_RETRIEVAL_ENABLED", False)
 CONTEXT_GENERATION_WORKERS = _int_from_env("CONTEXT_GENERATION_WORKERS", 4)
+AGENT_MAX_TOOL_TURNS = _int_from_env("AGENT_MAX_TOOL_TURNS", 6)
 
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
+EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class Settings(BaseModel):
@@ -70,6 +73,7 @@ class Settings(BaseModel):
     embedding_dimensions: int = Field(default=EMBEDDING_DIMENSIONS)
     data_dir: Path = Field(default=DATA_DIR)
     index_dir: Path = Field(default=INDEX_DIR)
+    export_dir: Path = Field(default=EXPORT_DIR)
     chunks_path: Path = Field(default=CHUNKS_PATH)
     embeddings_path: Path = Field(default=EMBEDDINGS_PATH)
     top_k: int = Field(default=TOP_K, ge=1)
@@ -79,12 +83,15 @@ class Settings(BaseModel):
     rerank_enabled: bool = Field(default=RERANK_ENABLED)
     contextual_retrieval_enabled: bool = Field(default=CONTEXTUAL_RETRIEVAL_ENABLED)
     context_generation_workers: int = Field(default=CONTEXT_GENERATION_WORKERS, ge=1)
+    agent_max_tool_turns: int = Field(default=AGENT_MAX_TOOL_TURNS, ge=1)
 
     @classmethod
     def from_env(cls, env_file: str | Path = PROJECT_ROOT / ".env") -> "Settings":
         load_dotenv(env_file)
         index_dir = _path_from_env("INDEX_DIR", "index")
+        export_dir = _path_from_env("EXPORT_DIR", "exports")
         index_dir.mkdir(parents=True, exist_ok=True)
+        export_dir.mkdir(parents=True, exist_ok=True)
         chunk_target_chars = _int_from_env(
             "CHUNK_TARGET_CHARS", _int_from_env("CHUNK_CHARS", CHUNK_TARGET_CHARS)
         )
@@ -103,6 +110,7 @@ class Settings(BaseModel):
             embedding_dimensions=_int_from_env("EMBEDDING_DIMENSIONS", EMBEDDING_DIMENSIONS),
             data_dir=_path_from_env("DATA_DIR", "data"),
             index_dir=index_dir,
+            export_dir=export_dir,
             chunks_path=index_dir / CHUNKS_PATH.name,
             embeddings_path=index_dir / EMBEDDINGS_PATH.name,
             top_k=_int_from_env("TOP_K", TOP_K),
@@ -116,6 +124,7 @@ class Settings(BaseModel):
             context_generation_workers=_int_from_env(
                 "CONTEXT_GENERATION_WORKERS", CONTEXT_GENERATION_WORKERS
             ),
+            agent_max_tool_turns=_int_from_env("AGENT_MAX_TOOL_TURNS", AGENT_MAX_TOOL_TURNS),
         )
 
     @property
