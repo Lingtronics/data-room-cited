@@ -29,7 +29,8 @@ mcp = FastMCP(
     "data-room-cited",
     instructions=(
         "MCP tools for searching a local diligence data room, inspecting chunks, "
-        "verifying citations, reporting coverage, rebuilding the index, and exporting outlines."
+        "verifying citations, reporting coverage, rebuilding the index, exporting outlines, "
+        "and inspecting catalogue, semantic, graph, and taxonomy metadata."
     ),
 )
 
@@ -66,6 +67,115 @@ def verify_citation(chunk_id: str, quote: str) -> dict[str, Any]:
 def get_document_coverage() -> dict[str, Any]:
     """Report indexed coverage by document, including missing or OCR-needed PDFs."""
     return _stdio_safe(mcp_tools.get_document_coverage)
+
+
+@mcp.tool()
+def search_catalog(query: str, limit: int = 10) -> dict[str, Any]:
+    """Search the local metadata catalogue by title, domain, classification, status, or chunk ID."""
+    return _stdio_safe(mcp_tools.search_catalog, query=query, limit=limit)
+
+
+@mcp.tool()
+def get_data_asset(asset_id: str) -> dict[str, Any]:
+    """Get one catalogue asset by asset_id."""
+    return _stdio_safe(mcp_tools.get_data_asset, asset_id=asset_id)
+
+
+@mcp.tool()
+def get_asset_lineage(asset_id: str, depth: int = 2) -> dict[str, Any]:
+    """Trace upstream and downstream lineage for a catalogue asset."""
+    return _stdio_safe(mcp_tools.get_asset_lineage, asset_id=asset_id, depth=depth)
+
+
+@mcp.tool()
+def get_data_quality_status() -> dict[str, Any]:
+    """Summarize catalogue quality status, including OCR and stale-source warnings."""
+    return _stdio_safe(mcp_tools.get_data_quality_status)
+
+
+@mcp.tool()
+def list_business_concepts() -> dict[str, Any]:
+    """List canonical diligence concepts and their source mention counts."""
+    return _stdio_safe(mcp_tools.list_business_concepts)
+
+
+@mcp.tool()
+def resolve_business_term(term: str) -> dict[str, Any]:
+    """Resolve a source term to canonical business concepts."""
+    return _stdio_safe(mcp_tools.resolve_business_term, term=term)
+
+
+@mcp.tool()
+def search_by_entity(entity: str, limit: int = 10) -> dict[str, Any]:
+    """Search semantic mentions by entity, term, source document, or quote text."""
+    return _stdio_safe(mcp_tools.search_by_entity, entity=entity, limit=limit)
+
+
+@mcp.tool()
+def get_entity_evidence(concept_or_term: str, limit: int = 10) -> dict[str, Any]:
+    """Return source evidence for a canonical concept or business term."""
+    return _stdio_safe(mcp_tools.get_entity_evidence, concept_or_term=concept_or_term, limit=limit)
+
+
+@mcp.tool()
+def search_entities(query: str, entity_type: str | None = None, limit: int = 10) -> dict[str, Any]:
+    """Search graph entities, concepts, and claims."""
+    return _stdio_safe(
+        mcp_tools.search_entities,
+        query=query,
+        entity_type=entity_type,
+        limit=limit,
+    )
+
+
+@mcp.tool()
+def get_entity_relationships(entity_id_or_name: str, depth: int = 1) -> dict[str, Any]:
+    """Get graph relationships around an entity, concept, chunk, document, or claim."""
+    return _stdio_safe(
+        mcp_tools.get_entity_relationships,
+        entity_id_or_name=entity_id_or_name,
+        depth=depth,
+    )
+
+
+@mcp.tool()
+def find_supporting_evidence(query: str, limit: int = 10) -> dict[str, Any]:
+    """Find graph claim nodes and source provenance that support a topic."""
+    return _stdio_safe(mcp_tools.find_supporting_evidence, query=query, limit=limit)
+
+
+@mcp.tool()
+def find_conflicting_claims(query: str | None = None) -> dict[str, Any]:
+    """Find heuristic candidate conflicts among extracted claim nodes."""
+    return _stdio_safe(mcp_tools.find_conflicting_claims, query=query)
+
+
+@mcp.tool()
+def resolve_taxonomy_concept(term: str) -> dict[str, Any]:
+    """Resolve a term against the imported SKOS/RDF taxonomy."""
+    return _stdio_safe(mcp_tools.resolve_taxonomy_concept, term=term)
+
+
+@mcp.tool()
+def list_broader_concepts(concept_id: str) -> dict[str, Any]:
+    """List broader SKOS taxonomy concepts."""
+    return _stdio_safe(mcp_tools.list_broader_concepts, concept_id=concept_id)
+
+
+@mcp.tool()
+def list_related_concepts(concept_id: str) -> dict[str, Any]:
+    """List related SKOS taxonomy concepts."""
+    return _stdio_safe(mcp_tools.list_related_concepts, concept_id=concept_id)
+
+
+@mcp.tool()
+def validate_entity_classification(entity_or_term: str, expected_concept_id: str) -> dict[str, Any]:
+    """Validate whether a term resolves to an expected taxonomy concept or descendant."""
+    return _stdio_safe(
+        mcp_tools.validate_entity_classification,
+        entity_or_term=entity_or_term,
+        expected_concept_id=expected_concept_id,
+    )
 
 
 @mcp.tool()

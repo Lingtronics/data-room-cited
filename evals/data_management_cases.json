@@ -1,0 +1,46 @@
+{
+  "entity_resolution": [
+    {
+      "term": "ARR",
+      "expected_concept_id": "revenue"
+    },
+    {
+      "term": "termination provision",
+      "expected_concept_id": "obligation"
+    },
+    {
+      "term": "customer",
+      "expected_concept_id": "client"
+    }
+  ],
+  "taxonomy_resolution": [
+    {
+      "term": "red flag",
+      "expected_concept_id": "Risk"
+    },
+    {
+      "term": "master subscription agreement",
+      "expected_concept_id": "Contract"
+    }
+  ],
+  "graph_entity_search": [
+    {
+      "query": "Folium Stores",
+      "expected_node_type": "counterparty"
+    },
+    {
+      "query": "Sarah Okonkwo",
+      "expected_node_type": "person"
+    }
+  ],
+  "provenance": [
+    {
+      "query": "contract risks",
+      "expected_has_chunk_id": true
+    },
+    {
+      "query": "CTO vacant",
+      "expected_has_chunk_id": true
+    }
+  ]
+}

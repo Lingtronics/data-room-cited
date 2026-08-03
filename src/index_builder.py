@@ -6,10 +6,13 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from src.config import Settings
+from src.catalogue import build_catalogue, save_catalogue
 from src.documents import load_pdf_chunks
 from src.embeddings import embed_texts
 from src.index_store import save_index
+from src.knowledge_graph import build_knowledge_graph, save_knowledge_graph
 from src.llm import contextualize_chunk, create_chat_provider
+from src.semantic import build_semantic_index, save_semantic_index
 
 
 LOGGER = logging.getLogger(__name__)
@@ -22,6 +25,10 @@ class BuildIndexResult:
     embedding_shape: tuple[int, ...]
     contextualized_count: int
     context_failure_count: int
+    catalogue_asset_count: int
+    semantic_mention_count: int
+    graph_node_count: int
+    graph_edge_count: int
 
 
 def build_index(
@@ -82,12 +89,23 @@ def build_index(
     embeddings = embed_texts([chunk.text_for_embedding for chunk in chunks])
     _notify(progress, "Saving index...")
     save_index(settings.index_dir, chunks, embeddings)
+    _notify(progress, "Building catalogue, semantic index, and knowledge graph...")
+    catalogue = build_catalogue(settings, chunks)
+    save_catalogue(settings, catalogue)
+    semantic_index = build_semantic_index(settings, chunks)
+    save_semantic_index(settings, semantic_index)
+    graph = build_knowledge_graph(settings, chunks, semantic_index)
+    save_knowledge_graph(settings, graph)
     _notify(progress, f"Indexed {len(chunks)} chunks.")
     return BuildIndexResult(
         chunk_count=len(chunks),
         embedding_shape=tuple(int(dim) for dim in embeddings.shape),
         contextualized_count=contextualized_count,
         context_failure_count=context_failure_count,
+        catalogue_asset_count=len(catalogue.assets),
+        semantic_mention_count=len(semantic_index.mentions),
+        graph_node_count=len(graph.nodes),
+        graph_edge_count=len(graph.edges),
     )
 
 

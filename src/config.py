@@ -44,8 +44,15 @@ EMBEDDING_DIMENSIONS = _int_from_env("EMBEDDING_DIMENSIONS", 384)
 DATA_DIR = _path_from_env("DATA_DIR", "data")
 INDEX_DIR = _path_from_env("INDEX_DIR", "index")
 EXPORT_DIR = _path_from_env("EXPORT_DIR", "exports")
+SEMANTIC_DIR = _path_from_env("SEMANTIC_DIR", "semantic")
+TAXONOMY_DIR = _path_from_env("TAXONOMY_DIR", "taxonomy")
 CHUNKS_PATH = INDEX_DIR / "chunks.json"
 EMBEDDINGS_PATH = INDEX_DIR / "embeddings.npy"
+CATALOGUE_PATH = INDEX_DIR / "catalogue.json"
+SEMANTIC_DEFINITIONS_PATH = SEMANTIC_DIR / "business_concepts.json"
+SEMANTIC_INDEX_PATH = INDEX_DIR / "semantic_index.json"
+KNOWLEDGE_GRAPH_PATH = INDEX_DIR / "knowledge_graph.json"
+TAXONOMY_PATH = TAXONOMY_DIR / "diligence_taxonomy.ttl"
 
 TOP_K = _int_from_env("TOP_K", 6)
 TOP_K_INITIAL = _int_from_env("TOP_K_INITIAL", max(TOP_K * 3, TOP_K))
@@ -59,6 +66,8 @@ AGENT_MAX_TOOL_TURNS = _int_from_env("AGENT_MAX_TOOL_TURNS", 6)
 
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+SEMANTIC_DIR.mkdir(parents=True, exist_ok=True)
+TAXONOMY_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class Settings(BaseModel):
@@ -74,8 +83,15 @@ class Settings(BaseModel):
     data_dir: Path = Field(default=DATA_DIR)
     index_dir: Path = Field(default=INDEX_DIR)
     export_dir: Path = Field(default=EXPORT_DIR)
+    semantic_dir: Path = Field(default=SEMANTIC_DIR)
+    taxonomy_dir: Path = Field(default=TAXONOMY_DIR)
     chunks_path: Path = Field(default=CHUNKS_PATH)
     embeddings_path: Path = Field(default=EMBEDDINGS_PATH)
+    catalogue_path: Path = Field(default=CATALOGUE_PATH)
+    semantic_definitions_path: Path = Field(default=SEMANTIC_DEFINITIONS_PATH)
+    semantic_index_path: Path = Field(default=SEMANTIC_INDEX_PATH)
+    knowledge_graph_path: Path = Field(default=KNOWLEDGE_GRAPH_PATH)
+    taxonomy_path: Path = Field(default=TAXONOMY_PATH)
     top_k: int = Field(default=TOP_K, ge=1)
     top_k_initial: int = Field(default=TOP_K_INITIAL, ge=1)
     chunk_target_chars: int = Field(default=CHUNK_TARGET_CHARS, ge=200)
@@ -90,8 +106,12 @@ class Settings(BaseModel):
         load_dotenv(env_file)
         index_dir = _path_from_env("INDEX_DIR", "index")
         export_dir = _path_from_env("EXPORT_DIR", "exports")
+        semantic_dir = _path_from_env("SEMANTIC_DIR", "semantic")
+        taxonomy_dir = _path_from_env("TAXONOMY_DIR", "taxonomy")
         index_dir.mkdir(parents=True, exist_ok=True)
         export_dir.mkdir(parents=True, exist_ok=True)
+        semantic_dir.mkdir(parents=True, exist_ok=True)
+        taxonomy_dir.mkdir(parents=True, exist_ok=True)
         chunk_target_chars = _int_from_env(
             "CHUNK_TARGET_CHARS", _int_from_env("CHUNK_CHARS", CHUNK_TARGET_CHARS)
         )
@@ -111,8 +131,19 @@ class Settings(BaseModel):
             data_dir=_path_from_env("DATA_DIR", "data"),
             index_dir=index_dir,
             export_dir=export_dir,
+            semantic_dir=semantic_dir,
+            taxonomy_dir=taxonomy_dir,
             chunks_path=index_dir / CHUNKS_PATH.name,
             embeddings_path=index_dir / EMBEDDINGS_PATH.name,
+            catalogue_path=index_dir / CATALOGUE_PATH.name,
+            semantic_definitions_path=_path_from_env(
+                "SEMANTIC_DEFINITIONS_PATH", str(SEMANTIC_DEFINITIONS_PATH.relative_to(PROJECT_ROOT))
+            ),
+            semantic_index_path=index_dir / SEMANTIC_INDEX_PATH.name,
+            knowledge_graph_path=index_dir / KNOWLEDGE_GRAPH_PATH.name,
+            taxonomy_path=_path_from_env(
+                "TAXONOMY_PATH", str(TAXONOMY_PATH.relative_to(PROJECT_ROOT))
+            ),
             top_k=_int_from_env("TOP_K", TOP_K),
             top_k_initial=_int_from_env("TOP_K_INITIAL", TOP_K_INITIAL),
             chunk_target_chars=chunk_target_chars,

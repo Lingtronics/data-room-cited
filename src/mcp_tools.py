@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from src import catalogue, knowledge_graph, semantic, taxonomy
 from src.citations import quote_in_source
 from src.config import Settings
 from src.embeddings import embed_one
@@ -176,6 +177,10 @@ def rebuild_index(contextualize: bool | None = None) -> dict[str, Any]:
         "embedding_shape": result.embedding_shape,
         "contextualized_count": result.contextualized_count,
         "context_failure_count": result.context_failure_count,
+        "catalogue_asset_count": result.catalogue_asset_count,
+        "semantic_mention_count": result.semantic_mention_count,
+        "graph_node_count": result.graph_node_count,
+        "graph_edge_count": result.graph_edge_count,
         "index_dir": str(settings.index_dir),
     }
 
@@ -191,6 +196,11 @@ def export_powerpoint_outline(
     output_path = _unique_export_path(settings.export_dir / f"{safe_name}.md")
     content = f"# {title.strip() or 'Data Room Cited Outline'}\n\n{outline_markdown.strip()}\n"
     output_path.write_text(content, encoding="utf-8")
+    try:
+        chunks = _load_chunks_or_empty(settings)
+        catalogue.save_catalogue(settings, catalogue.build_catalogue(settings, chunks))
+    except Exception:
+        pass
     return {
         "exported": True,
         "path": str(output_path),
@@ -198,6 +208,91 @@ def export_powerpoint_outline(
         "format": "markdown_powerpoint_outline",
         "characters": len(content),
     }
+
+
+def search_catalog(query: str, limit: int = 10) -> dict[str, Any]:
+    return catalogue.search_catalogue(query=query, limit=limit, settings=Settings.from_env())
+
+
+def get_data_asset(asset_id: str) -> dict[str, Any]:
+    return catalogue.get_data_asset(asset_id=asset_id, settings=Settings.from_env())
+
+
+def get_asset_lineage(asset_id: str, depth: int = 2) -> dict[str, Any]:
+    return catalogue.get_asset_lineage(asset_id=asset_id, depth=depth, settings=Settings.from_env())
+
+
+def get_data_quality_status() -> dict[str, Any]:
+    return catalogue.get_data_quality_status(settings=Settings.from_env())
+
+
+def list_business_concepts() -> dict[str, Any]:
+    return semantic.list_business_concepts(settings=Settings.from_env())
+
+
+def resolve_business_term(term: str) -> dict[str, Any]:
+    return semantic.resolve_business_term(term=term, settings=Settings.from_env())
+
+
+def search_by_entity(entity: str, limit: int = 10) -> dict[str, Any]:
+    return semantic.search_by_entity(entity=entity, limit=limit, settings=Settings.from_env())
+
+
+def get_entity_evidence(concept_or_term: str, limit: int = 10) -> dict[str, Any]:
+    return semantic.get_entity_evidence(
+        concept_or_term=concept_or_term,
+        limit=limit,
+        settings=Settings.from_env(),
+    )
+
+
+def search_entities(query: str, entity_type: str | None = None, limit: int = 10) -> dict[str, Any]:
+    return knowledge_graph.search_entities(
+        query=query,
+        entity_type=entity_type,
+        limit=limit,
+        settings=Settings.from_env(),
+    )
+
+
+def get_entity_relationships(entity_id_or_name: str, depth: int = 1) -> dict[str, Any]:
+    return knowledge_graph.get_entity_relationships(
+        entity_id_or_name=entity_id_or_name,
+        depth=depth,
+        settings=Settings.from_env(),
+    )
+
+
+def find_supporting_evidence(query: str, limit: int = 10) -> dict[str, Any]:
+    return knowledge_graph.find_supporting_evidence(
+        query=query,
+        limit=limit,
+        settings=Settings.from_env(),
+    )
+
+
+def find_conflicting_claims(query: str | None = None) -> dict[str, Any]:
+    return knowledge_graph.find_conflicting_claims(query=query, settings=Settings.from_env())
+
+
+def resolve_taxonomy_concept(term: str) -> dict[str, Any]:
+    return taxonomy.resolve_taxonomy_concept(term=term, settings=Settings.from_env())
+
+
+def list_broader_concepts(concept_id: str) -> dict[str, Any]:
+    return taxonomy.list_broader_concepts(concept_id=concept_id, settings=Settings.from_env())
+
+
+def list_related_concepts(concept_id: str) -> dict[str, Any]:
+    return taxonomy.list_related_concepts(concept_id=concept_id, settings=Settings.from_env())
+
+
+def validate_entity_classification(entity_or_term: str, expected_concept_id: str) -> dict[str, Any]:
+    return taxonomy.validate_entity_classification(
+        entity_or_term=entity_or_term,
+        expected_concept_id=expected_concept_id,
+        settings=Settings.from_env(),
+    )
 
 
 def enterprise_connector_plan() -> dict[str, Any]:
@@ -220,6 +315,13 @@ def enterprise_connector_plan() -> dict[str, Any]:
                 "name": "CRM",
                 "purpose": "Attach verified diligence outputs to client/project records.",
             },
+        ],
+        "data_management_extension_points": [
+            "metadata catalogue",
+            "semantic layer",
+            "knowledge graph",
+            "SKOS/RDF taxonomy resolution",
+            "MCP tool boundary",
         ],
     }
 
@@ -254,7 +356,7 @@ def _lexical_search(query: str, chunks: list[Chunk], top_k: int) -> list[tuple[C
 
 
 def _terms(text: str) -> list[str]:
-    return re.findall(r"[a-z0-9£$%]+", text.lower())
+    return re.findall(r"[a-z0-9$%]+", text.lower())
 
 
 def _chunk_payload(

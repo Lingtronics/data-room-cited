@@ -6,3 +6,4 @@ streamlit
 openai
 sentence-transformers
 mcp[cli]==1.29.0
+networkx

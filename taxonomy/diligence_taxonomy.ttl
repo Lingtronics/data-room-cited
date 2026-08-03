@@ -1,0 +1,66 @@
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix dd: <https://example.com/data-room-cited/taxonomy/> .
+
+<dd:DiligenceConcept> a skos:Concept ;
+  skos:prefLabel "Diligence concept" ;
+  skos:altLabel "commercial diligence topic" .
+
+<dd:Client> a skos:Concept ;
+  skos:prefLabel "Client" ;
+  skos:altLabel "customer" ;
+  skos:altLabel "buyer" ;
+  skos:altLabel "account" ;
+  skos:broader <dd:DiligenceConcept> ;
+  skos:related <dd:Contract> .
+
+<dd:Contract> a skos:Concept ;
+  skos:prefLabel "Contract" ;
+  skos:altLabel "agreement" ;
+  skos:altLabel "subscription" ;
+  skos:altLabel "master subscription agreement" ;
+  skos:broader <dd:DiligenceConcept> ;
+  skos:related <dd:Obligation> .
+
+<dd:Counterparty> a skos:Concept ;
+  skos:prefLabel "Counterparty" ;
+  skos:altLabel "contracting party" ;
+  skos:altLabel "customer" ;
+  skos:broader <dd:DiligenceConcept> ;
+  skos:related <dd:Contract> .
+
+<dd:Revenue> a skos:Concept ;
+  skos:prefLabel "Revenue" ;
+  skos:altLabel "ARR" ;
+  skos:altLabel "annual recurring revenue" ;
+  skos:altLabel "ACV" ;
+  skos:broader <dd:DiligenceConcept> .
+
+<dd:Risk> a skos:Concept ;
+  skos:prefLabel "Risk" ;
+  skos:altLabel "red flag" ;
+  skos:altLabel "headwind" ;
+  skos:altLabel "exposure" ;
+  skos:broader <dd:DiligenceConcept> ;
+  skos:related <dd:Obligation> .
+
+<dd:Obligation> a skos:Concept ;
+  skos:prefLabel "Obligation" ;
+  skos:altLabel "notice period" ;
+  skos:altLabel "auto-renewal" ;
+  skos:altLabel "opt-out" ;
+  skos:altLabel "termination" ;
+  skos:broader <dd:DiligenceConcept> ;
+  skos:related <dd:Contract> .
+
+<dd:Jurisdiction> a skos:Concept ;
+  skos:prefLabel "Jurisdiction" ;
+  skos:altLabel "territory" ;
+  skos:altLabel "regulatory jurisdiction" ;
+  skos:broader <dd:DiligenceConcept> .
+
+<dd:EffectiveDate> a skos:Concept ;
+  skos:prefLabel "Effective date" ;
+  skos:altLabel "term end" ;
+  skos:altLabel "renewal date" ;
+  skos:altLabel "notice date" ;
+  skos:broader <dd:DiligenceConcept> .

@@ -1,0 +1,92 @@
+[
+  {
+    "concept_id": "client",
+    "name": "Client",
+    "concept_type": "entity",
+    "description": "An organisation that buys, subscribes to, or uses the target company's product.",
+    "preferred_terms": ["client"],
+    "synonyms": ["customer", "buyer", "account", "logo", "counterparty"],
+    "examples": ["top ten customers", "mid-market accounts"]
+  },
+  {
+    "concept_id": "legal_entity",
+    "name": "Legal Entity",
+    "concept_type": "entity",
+    "description": "A legally recognised company, subsidiary, customer, supplier, or contracting party.",
+    "preferred_terms": ["legal entity"],
+    "synonyms": ["company", "subsidiary", "group", "plc", "limited", "contracting party"],
+    "examples": ["Folium Stores plc", "Meridian Analytics"]
+  },
+  {
+    "concept_id": "contract",
+    "name": "Contract",
+    "concept_type": "contract",
+    "description": "A customer, supplier, or commercial agreement with economic or legal terms.",
+    "preferred_terms": ["contract"],
+    "synonyms": ["agreement", "subscription", "msa", "master subscription agreement", "terms"],
+    "examples": ["three-year subscription", "auto-renewal"]
+  },
+  {
+    "concept_id": "counterparty",
+    "name": "Counterparty",
+    "concept_type": "entity",
+    "description": "The party on the other side of a contract or commercial relationship.",
+    "preferred_terms": ["counterparty"],
+    "synonyms": ["customer", "client", "buyer", "account", "contracting party"],
+    "examples": ["Northwell Pharmacy", "Ardent Foods Group"]
+  },
+  {
+    "concept_id": "revenue",
+    "name": "Revenue",
+    "concept_type": "metric",
+    "description": "Revenue and recurring revenue measures used to assess commercial scale and quality.",
+    "preferred_terms": ["revenue"],
+    "synonyms": ["annual recurring revenue", "arr", "acv", "average contract value", "net revenue retention", "nrr"],
+    "examples": ["ARR", "ACV"]
+  },
+  {
+    "concept_id": "risk",
+    "name": "Risk",
+    "concept_type": "risk",
+    "description": "A diligence concern, uncertainty, downside, inconsistency, or red flag.",
+    "preferred_terms": ["risk"],
+    "synonyms": ["headwind", "red flag", "exposure", "concern", "unclear", "gap", "pressure"],
+    "examples": ["customer concentration", "pricing pressure"]
+  },
+  {
+    "concept_id": "obligation",
+    "name": "Obligation",
+    "concept_type": "contract",
+    "description": "A duty, notice requirement, renewal term, opt-out, escalator, or legal commitment.",
+    "preferred_terms": ["obligation"],
+    "synonyms": ["notice period", "auto-renewal", "opt-out", "termination", "price escalator", "service level"],
+    "examples": ["180 days written notice", "90-day opt-out window"]
+  },
+  {
+    "concept_id": "jurisdiction",
+    "name": "Jurisdiction",
+    "concept_type": "entity",
+    "description": "A country, region, or legal/regulatory territory relevant to diligence.",
+    "preferred_terms": ["jurisdiction"],
+    "synonyms": ["uk", "ireland", "netherlands", "germany", "eu", "regulatory"],
+    "examples": ["UK GDPR", "EU Digital Markets Act"]
+  },
+  {
+    "concept_id": "effective_date",
+    "name": "Effective Date",
+    "concept_type": "date",
+    "description": "A date when a contract, renewal, notice period, departure, or obligation becomes effective.",
+    "preferred_terms": ["effective date"],
+    "synonyms": ["term ends", "renewal", "notice", "departure", "joined", "dated"],
+    "examples": ["Sep 2027", "February 2026"]
+  },
+  {
+    "concept_id": "management",
+    "name": "Management",
+    "concept_type": "governance",
+    "description": "Leadership, roles, vacancies, and operating responsibilities of the target company.",
+    "preferred_terms": ["management"],
+    "synonyms": ["leadership", "ceo", "cto", "cfo", "cro", "founder", "vp engineering"],
+    "examples": ["CTO vacant", "founders remain involved"]
+  }
+]
