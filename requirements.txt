@@ -3,6 +3,8 @@ pydantic
 numpy
 python-dotenv
 streamlit
+fastapi
+uvicorn
 openai
 sentence-transformers
 mcp[cli]==1.29.0

@@ -14,6 +14,7 @@ Prerequisites:
 
 - Windows PowerShell
 - Python 3.11+ available for creating the virtual environment
+- Node.js 20+ and pnpm if you want to run the TypeScript Streamable HTTP MCP gateway
 - A DeepSeek API key
 - Local PDF files placed in `data/`. The public repo keeps this folder empty and ignores `data/*.pdf`.
 
@@ -88,6 +89,42 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 
 For `search_data_room`, the Inspector smoke test below uses `semantic=false` so the one-shot MCP process does not spend the request window cold-loading the local embedding model. The app and agent still use semantic retrieval by default.
 
+Run the Python RAG core as an internal FastAPI service:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn app:app --app-dir services\rag-core --host 127.0.0.1 --port 8765
+```
+
+Install and run the TypeScript MCP gateway over Streamable HTTP:
+
+```powershell
+pnpm install
+$env:RAG_CORE_BASE_URL = "http://127.0.0.1:8765"
+pnpm --filter @data-room-cited/mcp-server dev
+```
+
+The HTTP MCP endpoint is:
+
+```text
+http://127.0.0.1:8787/mcp
+```
+
+Validate the TypeScript gateway with MCP Inspector:
+
+```powershell
+pnpm dlx @modelcontextprotocol/inspector --cli http://127.0.0.1:8787/mcp --method tools/list --format json
+pnpm dlx @modelcontextprotocol/inspector --cli http://127.0.0.1:8787/mcp --method tools/call --tool-name search_data_room --tool-arg query="contract risks" --tool-arg top_k=2 --tool-arg semantic=false --format json
+pnpm dlx @modelcontextprotocol/inspector --cli http://127.0.0.1:8787/mcp --method resources/read --uri "dataroom://chunks/01_Meridian_Analytics_Company_Overview-0001" --format json
+pnpm dlx @modelcontextprotocol/inspector --cli http://127.0.0.1:8787/mcp --method prompts/list --format json
+```
+
+Run the TypeScript gateway contract tests:
+
+```powershell
+pnpm --filter @data-room-cited/mcp-server build
+pnpm --filter @data-room-cited/mcp-server test
+```
+
 Run the Streamlit UI:
 
 ```powershell
@@ -127,6 +164,8 @@ Consultant stress-test prompts are in [`docs/consultant_stress_tests.md`](docs/c
 21. Imports a small SKOS/Turtle taxonomy so controlled vocabulary resolution is testable without claiming a production PoolParty implementation.
 22. Exposes catalogue, semantic, graph, taxonomy, and data-quality operations as MCP tools.
 23. Includes a small deterministic eval harness for entity resolution, taxonomy resolution, graph search, and provenance checks.
+24. Wraps trusted Python capabilities behind `services/rag-core` FastAPI endpoints.
+25. Exposes a TypeScript MCP gateway over Streamable HTTP with tools, resources, prompts, Zod validation, simple scopes, and contract tests.
 
 ```mermaid
 flowchart TD
@@ -156,6 +195,8 @@ flowchart TD
     SEM --> Q
     KG --> Q
     Q --> R["Optional tool-calling citing agent"]
+    Q --> API["FastAPI RAG core<br/>services/rag-core"]
+    API --> TSMCP["TypeScript MCP gateway<br/>Streamable HTTP<br/>tools, resources, prompts"]
 ```
 
 ## Key Decisions
@@ -169,6 +210,7 @@ flowchart TD
 - **Fail soft where possible.** Context generation and reranking are enhancements. If either fails, the system still builds or answers using vanilla embeddings/cosine retrieval.
 - **Surface limits loudly.** If a PDF produces zero chunks, the system warns that OCR is needed instead of silently pretending it searched the document.
 - **Use MCP as a capability boundary, not a rewrite.** The original RAG pipeline stays intact. MCP exposes high-level tools such as search, chunk inspection, citation verification, document coverage, rebuild, and export so an agent or external client can reuse the same trusted functions.
+- **Use a TypeScript MCP gateway for protocol fluency.** The Python core remains the source of truth; the TypeScript gateway validates arguments with Zod, enforces simple scopes, and exposes tools, resources, and prompts over Streamable HTTP.
 - **Add enterprise data-management concepts locally first.** The catalogue, semantic layer, taxonomy import, and graph are local JSON/NetworkX artifacts. That is deliberate: it demonstrates stewardship, lineage, controlled vocabulary, and graph-backed agent tools without pretending this prototype is a deployed enterprise catalogue or PoolParty/Neo4j service.
 
 ## MCP And Agent Layer
@@ -216,6 +258,34 @@ The MCP layer turns the app's reliable internal capabilities into callable tools
 
 The optional agent loop in `src/agent.py` uses DeepSeek tool calling over the same tool layer. It is intentionally separate from `src/rag.py`, so the original deterministic RAG flow remains available for the Streamlit UI and CLI.
 
+### TypeScript Streamable HTTP Gateway
+
+`apps/mcp-server` uses the official TypeScript MCP SDK packages pinned in `apps/mcp-server/package.json`:
+
+```text
+@modelcontextprotocol/server@2.0.0
+@modelcontextprotocol/node@2.0.0
+@modelcontextprotocol/client@2.0.0
+```
+
+The gateway does not duplicate RAG logic. It calls the internal FastAPI core in `services/rag-core`, validates tool inputs and output envelopes with Zod, propagates correlation IDs, and returns typed recoverable errors instead of stack traces.
+
+| Surface | Names |
+|---|---|
+| Tools | `search_data_room`, `verify_citation`, `find_supporting_evidence`, `get_asset_lineage`, `rebuild_index`, `export_powerpoint_outline` |
+| Resources | `dataroom://documents/{document_id}`, `dataroom://chunks/{chunk_id}`, `dataroom://catalogue/{asset_id}`, `dataroom://evals/latest` |
+| Prompts | `diligence-risk-review`, `contract-concentration-analysis`, `evidence-gap-assessment` |
+
+Simple scopes are intentionally lightweight for the MVP:
+
+| Token | Scopes |
+|---|---|
+| no token or `Bearer read` | `documents:read`, `citations:verify` |
+| `Bearer write` | `documents:read`, `citations:verify`, `index:write`, `exports:write` |
+| `Bearer admin` | all local scopes |
+
+The contract tests spin up the Python FastAPI service, connect to the TypeScript MCP server in memory, and compare MCP tool output with direct Python API output for retrieval, citation verification, evidence search, and lineage. They also confirm that a read-only client cannot call `rebuild_index`.
+
 The data-management additions are intentionally modest:
 
 - The catalogue is a local JSON snapshot in `index/catalogue.json`.
@@ -226,7 +296,7 @@ The data-management additions are intentionally modest:
 
 ### Inspector Smoke-Test Samples
 
-Tool discovery returned all eight registered tools:
+Tool discovery for the Python stdio MCP server returned the registered tools. Sample subset:
 
 ```json
 {
@@ -316,6 +386,39 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 ```
 
 
+### TypeScript Gateway Inspector Samples
+
+`tools/list` over Streamable HTTP returned the six TypeScript gateway tools:
+
+```json
+{
+  "tools": [
+    "search_data_room",
+    "verify_citation",
+    "find_supporting_evidence",
+    "get_asset_lineage",
+    "rebuild_index",
+    "export_powerpoint_outline"
+  ]
+}
+```
+
+`verify_citation` returned a typed success envelope:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "verified": true,
+    "reason": "verified",
+    "chunk_id": "01_Meridian_Analytics_Company_Overview-0001",
+    "source": "01_Meridian_Analytics_Company_Overview.pdf pp.1-2, 4. Customers and commercial model"
+  }
+}
+```
+
+`resources/read` for `dataroom://chunks/01_Meridian_Analytics_Company_Overview-0001` returned the source chunk as JSON, and `prompts/list` returned the three diligence prompts. A read-only call to `rebuild_index` returned a typed `insufficient_scope` error, as expected.
+
 ## What It Deliberately Doesn't Do
 
 - It does not OCR image-only or scanned PDFs. If a PDF produces no extractable text, indexing logs a warning naming the file and continues with the documents that did extract.
@@ -348,8 +451,23 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 .
 |-- app.py                         # Streamlit UI: Q&A plus PDF management sidebar
 |-- requirements.txt
+|-- package.json                   # pnpm workspace commands for the TypeScript MCP gateway
+|-- pnpm-workspace.yaml
+|-- tsconfig.base.json
 |-- README.md
 |-- .env.example
+|-- apps/
+|   `-- mcp-server/                # TypeScript Streamable HTTP MCP gateway
+|       |-- package.json
+|       |-- src/
+|       |   |-- config.ts
+|       |   |-- mcpGateway.contract.test.ts
+|       |   |-- mcpServer.ts
+|       |   |-- ragCoreClient.ts
+|       |   |-- schemas.ts
+|       |   |-- scopes.ts
+|       |   `-- server.ts
+|       `-- vitest.config.ts
 |-- data/                          # Source PDFs
 |   `-- .gitkeep                  # PDFs are local-only and ignored by Git
 |-- docs/
@@ -376,6 +494,9 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 |   |-- mcp_server.py              # MCP server exposing data-room tools
 |   |-- smoke_deepseek.py
 |   `-- smoke_embeddings.py
+|-- services/
+|   `-- rag-core/
+|       `-- app.py                 # FastAPI wrapper around trusted Python functions
 `-- src/
     |-- agent.py                   # Optional DeepSeek tool-calling agent loop
     |-- catalogue.py               # Local metadata catalogue and lineage model

@@ -1,0 +1,10 @@
+{
+  "name": "data-room-cited",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "mcp:dev": "pnpm --filter @data-room-cited/mcp-server dev",
+    "mcp:build": "pnpm --filter @data-room-cited/mcp-server build",
+    "mcp:test": "pnpm --filter @data-room-cited/mcp-server test"
+  }
+}

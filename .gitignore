@@ -1,4 +1,8 @@
 .venv/
+node_modules/
+apps/*/node_modules/
+apps/*/dist/
+coverage/
 __pycache__/
 *.pyc
 .pytest_cache/
