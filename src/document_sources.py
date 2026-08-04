@@ -158,6 +158,7 @@ class S3DocumentSource:
         metadata = head.get("Metadata", {}) or {}
         classification = tags.get("classification") or metadata.get("classification") or "internal"
         sensitivity = tags.get("sensitivity") or metadata.get("sensitivity") or "low"
+        acl = _acl_from_s3_metadata(tags, metadata)
         return DocumentMetadata(
             document_id=f"s3://{self.bucket}/{key}",
             title=Path(key).stem.replace("_", " "),
@@ -170,12 +171,15 @@ class S3DocumentSource:
             last_modified=_isoformat(last_modified),
             data_classification=classification,
             sensitivity_level=sensitivity,
-            acl={"tags": tags},
+            acl=acl,
             metadata={
                 "bucket": self.bucket,
                 "s3_key": key,
                 "etag": etag,
+                "version_id": head.get("VersionId"),
                 "server_side_encryption": head.get("ServerSideEncryption"),
+                "object_tags": tags,
+                "user_metadata": metadata,
             },
         )
 
@@ -525,6 +529,21 @@ def _s3_tags(client: Any, bucket: str, key: str) -> dict[str, str]:
     except Exception:
         return {}
     return {item["Key"]: item["Value"] for item in response.get("TagSet", [])}
+
+
+def _acl_from_s3_metadata(tags: dict[str, str], metadata: dict[str, Any]) -> dict[str, Any]:
+    acl: dict[str, Any] = {"tags": tags}
+    for key in ("allowed_workspaces", "allowed_roles"):
+        value = tags.get(key) or metadata.get(key)
+        if value:
+            acl[key] = _acl_values(value)
+    return acl
+
+
+def _acl_values(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    return [item.strip() for item in str(value).split(",") if item.strip()]
 
 
 def _boto3_client(endpoint_url: str | None) -> Any:

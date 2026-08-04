@@ -3,6 +3,7 @@ pydantic
 numpy
 python-dotenv
 streamlit
+boto3
 fastapi
 uvicorn
 openai

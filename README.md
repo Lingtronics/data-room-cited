@@ -69,7 +69,7 @@ Run the release gate against the local private data-room index:
 .\.venv\Scripts\python.exe scripts\evaluate_release_gate.py --skip-external-gates
 ```
 
-The full release gate is the Python release gate plus the TypeScript MCP contract test:
+The full release gate is the Python release gate plus the TypeScript MCP contract test. The contract test generates a sanitized fixture index, starts the Python FastAPI core, and fails if the TypeScript MCP gateway no longer matches the Python API contract:
 
 ```powershell
 pnpm --filter @data-room-cited/mcp-server test
@@ -429,7 +429,7 @@ The production-facing additions are intentionally small but concrete:
 | Observability | OpenTelemetry spans wrap agent routing, subagent calls, MCP tool calls, retrieval, reranking, citation checks, LLM calls, index rebuilds, and exports |
 | Confidentiality | Trace attributes use IDs, counts, roles, model IDs, prompt versions, and chunk IDs rather than raw confidential document text |
 | Containers | Separate local containers for `web`, `rag-core`, `orchestrator`, `mcp-server`, and `otel-collector` |
-| CI/CD | GitHub Actions run Python compile/tests/evals, TypeScript lint/typecheck/tests, MCP contract tests, container builds, and audit commands |
+| CI/CD | GitHub Actions run Python compile/tests/evals, TypeScript lint/typecheck/tests, mandatory MCP contract tests, container builds, and audit commands |
 | Cloud reference | Terraform sketch for AWS ECS/Fargate, S3 document storage, CloudWatch logs, and a place to add ALB/Postgres state |
 
 ## Release Gate
@@ -464,7 +464,7 @@ Implemented sources:
 | Source | What it demonstrates |
 |---|---|
 | `LocalFileDocumentSource` | Local PDF discovery, SHA-256 content hashes, sidecar ACL JSON, incremental cursor, deleted-document handling, idempotent sync |
-| `S3DocumentSource` | S3 bucket/prefix discovery, ETag/version tracking, object tags/metadata, ACL metadata, incremental cursor, streaming download |
+| `S3DocumentSource` | S3 bucket/prefix discovery, ETag/version tracking, object tags/metadata, ACL metadata, incremental cursor, streaming download, fake-client tests for pagination, deletes, download failure, and idempotent sync |
 
 `scripts/sync_document_source.py` writes synced PDFs into `data/` and persists `index/source_manifest.json`. The catalogue reads that manifest so document assets carry source-system URI, version, content hash, sync timestamp, ACL metadata, and lineage into chunks and generated artifacts.
 
