@@ -63,6 +63,12 @@ RERANK_ENABLED = _bool_from_env("RERANK_ENABLED", True)
 CONTEXTUAL_RETRIEVAL_ENABLED = _bool_from_env("CONTEXTUAL_RETRIEVAL_ENABLED", False)
 CONTEXT_GENERATION_WORKERS = _int_from_env("CONTEXT_GENERATION_WORKERS", 4)
 AGENT_MAX_TOOL_TURNS = _int_from_env("AGENT_MAX_TOOL_TURNS", 6)
+MULTI_AGENT_ENABLED = _bool_from_env("MULTI_AGENT_ENABLED", True)
+MULTI_AGENT_MAX_MODEL_CALLS = _int_from_env("MULTI_AGENT_MAX_MODEL_CALLS", 6)
+MULTI_AGENT_MAX_TOOL_CALLS = _int_from_env("MULTI_AGENT_MAX_TOOL_CALLS", 50)
+MULTI_AGENT_MAX_RETRIES = _int_from_env("MULTI_AGENT_MAX_RETRIES", 1)
+MULTI_AGENT_MAX_ELAPSED_SECONDS = _int_from_env("MULTI_AGENT_MAX_ELAPSED_SECONDS", 180)
+MULTI_AGENT_MAX_CONTEXT_CHARS = _int_from_env("MULTI_AGENT_MAX_CONTEXT_CHARS", 40000)
 
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -100,6 +106,12 @@ class Settings(BaseModel):
     contextual_retrieval_enabled: bool = Field(default=CONTEXTUAL_RETRIEVAL_ENABLED)
     context_generation_workers: int = Field(default=CONTEXT_GENERATION_WORKERS, ge=1)
     agent_max_tool_turns: int = Field(default=AGENT_MAX_TOOL_TURNS, ge=1)
+    multi_agent_enabled: bool = Field(default=MULTI_AGENT_ENABLED)
+    multi_agent_max_model_calls: int = Field(default=MULTI_AGENT_MAX_MODEL_CALLS, ge=1)
+    multi_agent_max_tool_calls: int = Field(default=MULTI_AGENT_MAX_TOOL_CALLS, ge=1)
+    multi_agent_max_retries: int = Field(default=MULTI_AGENT_MAX_RETRIES, ge=0)
+    multi_agent_max_elapsed_seconds: int = Field(default=MULTI_AGENT_MAX_ELAPSED_SECONDS, ge=10)
+    multi_agent_max_context_chars: int = Field(default=MULTI_AGENT_MAX_CONTEXT_CHARS, ge=5000)
 
     @classmethod
     def from_env(cls, env_file: str | Path = PROJECT_ROOT / ".env") -> "Settings":
@@ -156,6 +168,22 @@ class Settings(BaseModel):
                 "CONTEXT_GENERATION_WORKERS", CONTEXT_GENERATION_WORKERS
             ),
             agent_max_tool_turns=_int_from_env("AGENT_MAX_TOOL_TURNS", AGENT_MAX_TOOL_TURNS),
+            multi_agent_enabled=_bool_from_env("MULTI_AGENT_ENABLED", MULTI_AGENT_ENABLED),
+            multi_agent_max_model_calls=_int_from_env(
+                "MULTI_AGENT_MAX_MODEL_CALLS", MULTI_AGENT_MAX_MODEL_CALLS
+            ),
+            multi_agent_max_tool_calls=_int_from_env(
+                "MULTI_AGENT_MAX_TOOL_CALLS", MULTI_AGENT_MAX_TOOL_CALLS
+            ),
+            multi_agent_max_retries=_int_from_env(
+                "MULTI_AGENT_MAX_RETRIES", MULTI_AGENT_MAX_RETRIES
+            ),
+            multi_agent_max_elapsed_seconds=_int_from_env(
+                "MULTI_AGENT_MAX_ELAPSED_SECONDS", MULTI_AGENT_MAX_ELAPSED_SECONDS
+            ),
+            multi_agent_max_context_chars=_int_from_env(
+                "MULTI_AGENT_MAX_CONTEXT_CHARS", MULTI_AGENT_MAX_CONTEXT_CHARS
+            ),
         )
 
     @property

@@ -45,7 +45,7 @@ def answer_from_index(question: str, settings: Settings | None = None) -> str:
     provider = create_chat_provider(settings)
     chunks, embeddings = load_index(settings.index_dir)
 
-    if _is_broad_question(question):
+    if is_broad_question(question):
         LOGGER.info("Using whole-corpus context for broad question.")
         selected = [_candidate_from_chunk(chunk) for chunk in chunks]
     else:
@@ -111,6 +111,10 @@ def _candidate_from_chunk(chunk: Chunk, *, score: float | None = None) -> Rerank
     )
 
 
-def _is_broad_question(question: str) -> bool:
+def is_broad_question(question: str) -> bool:
     normalized = question.lower()
     return any(re.search(pattern, normalized) for pattern in BROAD_QUESTION_PATTERNS)
+
+
+def _is_broad_question(question: str) -> bool:
+    return is_broad_question(question)

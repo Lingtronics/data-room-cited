@@ -69,6 +69,13 @@ Ask through the tool-calling citing agent:
 .\.venv\Scripts\python.exe scripts\agent_ask.py "What contract risks should I cite?"
 ```
 
+Route automatically between deterministic RAG and the multi-agent diligence workflow:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\agent_ask.py "Who is covering the CTO role?" --workflow auto
+.\.venv\Scripts\python.exe scripts\agent_ask.py "Assess customer concentration and contract renewal risks across the data room." --workflow multi-agent
+```
+
 Run the MCP server over stdio for an MCP-compatible client:
 
 ```powershell
@@ -166,6 +173,9 @@ Consultant stress-test prompts are in [`docs/consultant_stress_tests.md`](docs/c
 23. Includes a small deterministic eval harness for entity resolution, taxonomy resolution, graph search, and provenance checks.
 24. Wraps trusted Python capabilities behind `services/rag-core` FastAPI endpoints.
 25. Exposes a TypeScript MCP gateway over Streamable HTTP with tools, resources, prompts, Zod validation, simple scopes, and contract tests.
+26. Routes simple factual questions to the lower-cost deterministic RAG path.
+27. Routes broad diligence questions to a multi-agent workflow with separate research, risk-analysis, citation-audit, and report-builder agents.
+28. Captures a trace of agent decisions, model calls, tool calls, fallbacks, budgets, and deterministic release-gate actions.
 
 ```mermaid
 flowchart TD
@@ -197,6 +207,14 @@ flowchart TD
     Q --> R["Optional tool-calling citing agent"]
     Q --> API["FastAPI RAG core<br/>services/rag-core"]
     API --> TSMCP["TypeScript MCP gateway<br/>Streamable HTTP<br/>tools, resources, prompts"]
+
+    I --> SUP["Supervisor route decision"]
+    SUP -->|simple factual| M
+    SUP -->|broad diligence| EA["Evidence Research Agent<br/>allowed read tools only"]
+    EA --> RA["Contract and Risk Agent<br/>evidence bundle only"]
+    RA --> CA["Citation Audit Agent<br/>verify_citation only"]
+    CA --> RB["Report Builder Agent<br/>approved claims only"]
+    RB --> P
 ```
 
 ## Key Decisions
@@ -211,6 +229,8 @@ flowchart TD
 - **Surface limits loudly.** If a PDF produces zero chunks, the system warns that OCR is needed instead of silently pretending it searched the document.
 - **Use MCP as a capability boundary, not a rewrite.** The original RAG pipeline stays intact. MCP exposes high-level tools such as search, chunk inspection, citation verification, document coverage, rebuild, and export so an agent or external client can reuse the same trusted functions.
 - **Use a TypeScript MCP gateway for protocol fluency.** The Python core remains the source of truth; the TypeScript gateway validates arguments with Zod, enforces simple scopes, and exposes tools, resources, and prompts over Streamable HTTP.
+- **Use multi-agent only where it earns its keep.** Broad diligence requests need decomposition, evidence gathering, risk synthesis, audit, and report structure. Simple factual lookups stay on deterministic RAG because multi-agent adds cost, latency, and failure modes.
+- **Keep the final release gate deterministic.** The Citation Audit Agent can review support quality, but code still enforces quote verification. A claim with a failed citation check cannot enter the final multi-agent report.
 - **Add enterprise data-management concepts locally first.** The catalogue, semantic layer, taxonomy import, and graph are local JSON/NetworkX artifacts. That is deliberate: it demonstrates stewardship, lineage, controlled vocabulary, and graph-backed agent tools without pretending this prototype is a deployed enterprise catalogue or PoolParty/Neo4j service.
 
 ## MCP And Agent Layer
@@ -257,6 +277,34 @@ The MCP layer turns the app's reliable internal capabilities into callable tools
 | `enterprise_connector_plan` | Document the planned SharePoint, Box, and CRM connector boundary |
 
 The optional agent loop in `src/agent.py` uses DeepSeek tool calling over the same tool layer. It is intentionally separate from `src/rag.py`, so the original deterministic RAG flow remains available for the Streamlit UI and CLI.
+
+### Multi-Agent Diligence Workflow
+
+`src/diligence_agents.py` implements the broad-question workflow. It deliberately does not rename pipeline stages as agents; each agent has a separate prompt, state schema, tool allowlist, and responsibility.
+
+| Agent | Responsibility | Tool access |
+|---|---|---|
+| Supervisor | Route simple questions to deterministic RAG and broad questions to the diligence workflow | No direct tools |
+| Evidence Research Agent | Plan searches, inspect document coverage, retrieve chunks, catalogue matches, and graph evidence | `list_documents`, `get_document_coverage`, `search_data_room`, `get_chunk`, `search_catalog`, `find_supporting_evidence`, `get_entity_relationships` |
+| Contract and Risk Agent | Analyze only the evidence bundle and produce candidate claims, risks, and unanswered questions | No raw tool access |
+| Citation Audit Agent | Mechanically verify citations and review support quality | `verify_citation` only |
+| Report Builder Agent | Build the final memo or slide-outline from approved claims only | `export_powerpoint_outline` only after explicit approval |
+
+The workflow has explicit budgets for model calls, tool calls, retries, elapsed time, and context size. It also records an execution trace so a reviewer can see why the system routed a question, which tools were used, which subagent fell back, and which claims were rejected before release.
+
+The tested broad-question command:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\agent_ask.py "Assess customer concentration and contract renewal risks across the data room." --workflow multi-agent --hide-trace
+```
+
+returned `Route: multi_agent_diligence`. A simple factual smoke test:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\agent_ask.py "Who is covering the CTO role?" --workflow auto --hide-trace
+```
+
+returned `Route: deterministic_rag`.
 
 ### TypeScript Streamable HTTP Gateway
 
@@ -432,6 +480,7 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 - It does not show the past conversations.
 - It does not implement live SharePoint, Box, or CRM connectors. The MCP tool documents that boundary as a production extension.
 - It does not implement a production enterprise catalogue, semantic platform, Neo4j deployment, or PoolParty integration. It implements local, testable versions of those patterns.
+- It does not yet use LangGraph JS subgraphs. The current multi-agent workflow implements the same separation-of-responsibilities pattern inside the Python core first; LangGraph would be the next orchestration upgrade once persistence and human approvals need to be productionized.
 
 
 ## What I Would Do Differently With More Time
@@ -487,7 +536,7 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 |-- taxonomy/
 |   `-- diligence_taxonomy.ttl     # Small SKOS/Turtle controlled vocabulary
 |-- scripts/
-|   |-- agent_ask.py               # CLI tool-calling agent entrypoint
+|   |-- agent_ask.py               # CLI agent entrypoint with deterministic / multi-agent routing
 |   |-- ask.py                     # CLI question entrypoint
 |   |-- build_index.py             # CLI index builder
 |   |-- evaluate_data_management.py
@@ -503,6 +552,7 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
     |-- config.py                  # Single source of truth for settings
     |-- citations.py               # Shared quote/citation matching helpers
     |-- documents.py               # PDF extraction and chunking
+    |-- diligence_agents.py         # Broad-question supervisor and specialist diligence agents
     |-- embeddings.py              # Local sentence-transformers wrapper
     |-- index_builder.py           # Shared build pipeline
     |-- index_store.py             # Save/load/retrieve index

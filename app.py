@@ -6,6 +6,7 @@ from pathlib import Path
 import streamlit as st
 
 from src.config import Settings
+from src.diligence_agents import answer_with_diligence_supervisor
 from src.index_builder import build_index
 from src.index_store import load_index
 from src.rag import answer_from_index
@@ -133,6 +134,17 @@ def _build_sidebar() -> None:
             except Exception as exc:
                 st.sidebar.error(str(exc))
 
+    st.sidebar.divider()
+    st.sidebar.header("Workflow")
+    st.session_state["use_diligence_workflow"] = st.sidebar.checkbox(
+        "Use diligence workflow for broad requests",
+        value=st.session_state.get("use_diligence_workflow", True),
+    )
+    st.session_state["show_agent_trace"] = st.sidebar.checkbox(
+        "Show agent trace",
+        value=st.session_state.get("show_agent_trace", True),
+    )
+
 
 _build_sidebar()
 
@@ -141,8 +153,26 @@ question = st.text_input("Question", placeholder="What are the key risks in the 
 if st.button("Ask", type="primary", disabled=not question or not settings.deepseek_api_key):
     with st.spinner("Reading the data room..."):
         try:
-            answer = answer_from_index(question, settings)
+            if st.session_state.get("use_diligence_workflow", True):
+                result = answer_with_diligence_supervisor(question, settings)
+                answer = result.answer
+            else:
+                result = None
+                answer = answer_from_index(question, settings)
         except Exception as exc:
             st.error(str(exc))
         else:
             st.markdown(answer)
+            if result is not None:
+                st.caption(
+                    f"Route: {result.route} | "
+                    f"model calls: {result.model_calls_used} | "
+                    f"tool calls: {result.tool_calls_used}"
+                )
+                if st.session_state.get("show_agent_trace", True) and result.trace:
+                    with st.expander("Agent trace"):
+                        for event in result.trace:
+                            st.text(
+                                f"{event.elapsed_seconds:>5.2f}s | {event.agent} | "
+                                f"{event.action} | {event.status} | {event.detail}"
+                            )
