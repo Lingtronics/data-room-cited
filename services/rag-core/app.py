@@ -7,12 +7,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Generic, TypeVar
 
-from fastapi import FastAPI, Header, Query, Response
+from fastapi import FastAPI, Header, Query, Request, Response
+from opentelemetry.trace import SpanKind
 from pydantic import BaseModel, Field
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src import mcp_tools
+from src.telemetry import setup_telemetry, span
 
 
 T = TypeVar("T")
@@ -56,6 +58,22 @@ app = FastAPI(
     version="1.0.0",
     description="Internal HTTP wrapper around the trusted Python data-room evidence functions.",
 )
+setup_telemetry("data-room-cited.rag-core")
+
+
+@app.middleware("http")
+async def telemetry_middleware(request: Request, call_next):
+    with span(
+        "rag_core.http.request",
+        {
+            "http.request.method": request.method,
+            "url.path": request.url.path,
+            "correlation_id": request.headers.get("x-correlation-id"),
+        },
+        kind=SpanKind.SERVER,
+        context_headers=dict(request.headers),
+    ):
+        return await call_next(request)
 
 
 @app.get("/health")

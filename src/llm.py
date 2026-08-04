@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from src.citations import split_verified_citations
 from src.config import Settings
 from src.schemas import Answer, Citation, VerifiedAnswer
+from src.telemetry import span
 
 
 LOGGER = logging.getLogger(__name__)
@@ -111,12 +112,21 @@ class DeepSeekProvider:
         max_tokens: int = 700,
         temperature: float = 0.0,
     ) -> str:
-        response = self.client.chat.completions.create(
-            model=model or self.settings.llm_model_id,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            messages=[message.model_dump() for message in messages],
-        )
+        model_id = model or self.settings.llm_model_id
+        with span(
+            "llm.generate",
+            {
+                "model_id": model_id,
+                "llm.max_tokens": max_tokens,
+                "llm.temperature": temperature,
+            },
+        ):
+            response = self.client.chat.completions.create(
+                model=model_id,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=[message.model_dump() for message in messages],
+            )
         return response.choices[0].message.content or ""
 
 
@@ -183,17 +193,26 @@ def _call_submit_answer_tool(
     max_tokens: int,
     temperature: float,
 ) -> str:
-    response = client.chat.completions.create(
-        model=model,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        tools=[ANSWER_TOOL_SPEC],
-        tool_choice={"type": "function", "function": {"name": "submit_answer"}},
-    )
+    with span(
+        "llm.generate",
+        {
+            "model_id": model,
+            "llm.max_tokens": max_tokens,
+            "llm.temperature": temperature,
+            "llm.structured_tool": "submit_answer",
+        },
+    ):
+        response = client.chat.completions.create(
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            tools=[ANSWER_TOOL_SPEC],
+            tool_choice={"type": "function", "function": {"name": "submit_answer"}},
+        )
     message = response.choices[0].message
     tool_calls = message.tool_calls or []
     if not tool_calls:
@@ -399,30 +418,38 @@ def listwise_rerank(
 ) -> list[RerankCandidate]:
     if not candidates:
         return []
-
-    candidate_text = "\n\n".join(
-        f"ID: {candidate.id}\nSource: {candidate.source or 'unknown'}\nText:\n{candidate.text[:1200]}"
-        for candidate in candidates
-    )
-    messages = [
-        ChatMessage(
-            role="system",
-            content=(
-                "You are a listwise reranker. Rank passages by usefulness for answering the query. "
-                "Return only JSON shaped as {\"ranked_ids\": [\"id1\", \"id2\"]}."
+    with span(
+        "retrieval.rerank",
+        {
+            "model_id": settings.rerank_model_id,
+            "candidate_count": len(candidates),
+            "top_k": top_k,
+            "candidate_ids": [candidate.id for candidate in candidates[:20]],
+        },
+    ):
+        candidate_text = "\n\n".join(
+            f"ID: {candidate.id}\nSource: {candidate.source or 'unknown'}\nText:\n{candidate.text[:1200]}"
+            for candidate in candidates
+        )
+        messages = [
+            ChatMessage(
+                role="system",
+                content=(
+                    "You are a listwise reranker. Rank passages by usefulness for answering the query. "
+                    "Return only JSON shaped as {\"ranked_ids\": [\"id1\", \"id2\"]}."
+                ),
             ),
-        ),
-        ChatMessage(
-            role="user",
-            content=f"Query:\n{query}\n\nCandidates:\n{candidate_text}\n\nReturn the top {top_k} IDs.",
-        ),
-    ]
-    raw = provider.chat(messages, model=settings.rerank_model_id, max_tokens=250, temperature=0.0)
-    ranked_ids = _extract_ranked_ids(raw)
-    by_id = {candidate.id: candidate for candidate in candidates}
-    ranked = [by_id[item_id] for item_id in ranked_ids if item_id in by_id]
-    remaining = [candidate for candidate in candidates if candidate.id not in ranked_ids]
-    return (ranked + remaining)[:top_k]
+            ChatMessage(
+                role="user",
+                content=f"Query:\n{query}\n\nCandidates:\n{candidate_text}\n\nReturn the top {top_k} IDs.",
+            ),
+        ]
+        raw = provider.chat(messages, model=settings.rerank_model_id, max_tokens=250, temperature=0.0)
+        ranked_ids = _extract_ranked_ids(raw)
+        by_id = {candidate.id: candidate for candidate in candidates}
+        ranked = [by_id[item_id] for item_id in ranked_ids if item_id in by_id]
+        remaining = [candidate for candidate in candidates if candidate.id not in ranked_ids]
+        return (ranked + remaining)[:top_k]
 
 
 def _extract_ranked_ids(text: str) -> list[str]:

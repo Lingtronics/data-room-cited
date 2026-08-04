@@ -1,0 +1,79 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./infra/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+
+  rag-core:
+    build:
+      context: .
+      dockerfile: docker/rag-core.Dockerfile
+    env_file: .env
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: data-room-cited.rag-core
+    volumes:
+      - ./data:/app/data
+      - ./index:/app/index
+      - ./exports:/app/exports
+    ports:
+      - "8765:8765"
+    depends_on:
+      - otel-collector
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: docker/orchestrator.Dockerfile
+    env_file: .env
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: data-room-cited.orchestrator
+    volumes:
+      - ./data:/app/data
+      - ./index:/app/index
+      - ./exports:/app/exports
+    ports:
+      - "8770:8770"
+    depends_on:
+      - otel-collector
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: apps/mcp-server/Dockerfile
+    env_file: .env
+    environment:
+      RAG_CORE_BASE_URL: http://rag-core:8765
+      MCP_GATEWAY_PORT: 8787
+      MCP_AUTH_AUDIENCE: http://127.0.0.1:8787/mcp
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: data-room-cited.mcp-server
+    ports:
+      - "8787:8787"
+    depends_on:
+      - rag-core
+      - otel-collector
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    env_file: .env
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: data-room-cited.web
+    volumes:
+      - ./data:/app/data
+      - ./index:/app/index
+      - ./exports:/app/exports
+    ports:
+      - "8501:8501"
+    depends_on:
+      - rag-core
+      - orchestrator
+      - otel-collector

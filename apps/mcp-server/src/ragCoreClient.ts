@@ -12,6 +12,7 @@ import {
   SearchDataRoomInputSchema,
   VerifyCitationInputSchema,
 } from "./schemas.js";
+import { injectTraceHeaders, withSpan } from "./telemetry.js";
 
 type SearchDataRoomInput = Infer<typeof SearchDataRoomInputSchema>;
 type VerifyCitationInput = Infer<typeof VerifyCitationInputSchema>;
@@ -94,33 +95,44 @@ export class RagCoreClient {
   }
 
   private async request(method: "GET" | "POST", path: string, body?: unknown): Promise<ApiEnvelope> {
-    const url = new URL(path, this.baseUrl);
-    const init: RequestInit = {
-      method,
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json",
-        "x-correlation-id": this.correlationId,
+    return withSpan(
+      "rag_core.request",
+      {
+        "http.request.method": method,
+        "url.path": path.split("?")[0],
+        "correlation_id": this.correlationId,
       },
-    };
-    if (body !== undefined) {
-      init.body = JSON.stringify(body);
-    }
-    const response = await fetch(url, init);
-    const json = (await response.json().catch(() => undefined)) as unknown;
-    const parsed = ApiEnvelopeSchema.safeParse(json);
-    if (parsed.success) {
-      return parsed.data;
-    }
-    return {
-      ok: false,
-      correlation_id: response.headers.get("x-correlation-id") ?? this.correlationId,
-      error: {
-        code: `HTTP_${response.status}`,
-        message: response.ok
-          ? "RAG core returned an unexpected response envelope."
-          : `RAG core request failed with HTTP ${response.status}.`,
+      async () => {
+        const url = new URL(path, this.baseUrl);
+        const headers = injectTraceHeaders({
+          accept: "application/json",
+          "content-type": "application/json",
+          "x-correlation-id": this.correlationId,
+        });
+        const init: RequestInit = {
+          method,
+          headers,
+        };
+        if (body !== undefined) {
+          init.body = JSON.stringify(body);
+        }
+        const response = await fetch(url, init);
+        const json = (await response.json().catch(() => undefined)) as unknown;
+        const parsed = ApiEnvelopeSchema.safeParse(json);
+        if (parsed.success) {
+          return parsed.data;
+        }
+        return {
+          ok: false,
+          correlation_id: response.headers.get("x-correlation-id") ?? this.correlationId,
+          error: {
+            code: `HTTP_${response.status}`,
+            message: response.ok
+              ? "RAG core returned an unexpected response envelope."
+              : `RAG core request failed with HTTP ${response.status}.`,
+          },
+        };
       },
-    };
+    );
   }
 }

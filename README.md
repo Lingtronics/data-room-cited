@@ -132,6 +132,33 @@ pnpm --filter @data-room-cited/mcp-server build
 pnpm --filter @data-room-cited/mcp-server test
 ```
 
+Run the gateway with JWT authentication enabled:
+
+```powershell
+$env:MCP_AUTH_REQUIRED = "true"
+$env:MCP_ALLOW_DEV_TOKENS = "false"
+$env:MCP_AUTH_ISSUER = "data-room-cited-local"
+$env:MCP_AUTH_AUDIENCE = "http://127.0.0.1:8787/mcp"
+$env:MCP_DEV_JWT_SECRET = "local-dev-only-change-me"
+
+$tokenLines = @(pnpm --filter @data-room-cited/mcp-server mint-token -- --scope "documents:read citations:verify" --workspace "deal-alpha" --documents "01_Meridian_Analytics_Company_Overview.pdf")
+$token = $tokenLines[$tokenLines.Length - 1]
+
+pnpm --filter @data-room-cited/mcp-server dev
+```
+
+Then call Inspector with the bearer token:
+
+```powershell
+pnpm dlx @modelcontextprotocol/inspector --cli --transport http --server-url http://127.0.0.1:8787/mcp --header "Authorization: Bearer $token" --method tools/call --tool-name search_data_room --tool-arg query="contract risks" --tool-arg top_k=2 --tool-arg semantic=false --format json
+```
+
+Run the local production scaffold:
+
+```powershell
+docker compose up --build
+```
+
 Run the Streamlit UI:
 
 ```powershell
@@ -176,6 +203,11 @@ Consultant stress-test prompts are in [`docs/consultant_stress_tests.md`](docs/c
 26. Routes simple factual questions to the lower-cost deterministic RAG path.
 27. Routes broad diligence questions to a multi-agent workflow with separate research, risk-analysis, citation-audit, and report-builder agents.
 28. Captures a trace of agent decisions, model calls, tool calls, fallbacks, budgets, and deterministic release-gate actions.
+29. Supports authenticated Streamable HTTP MCP with JWT validation, local dev tokens, workspace identity, simple scopes, approval grants, and document-level filters.
+30. Derives tenant, user, document access, and write approvals from the authenticated context rather than from LLM-generated tool arguments.
+31. Emits OpenTelemetry span hooks across routing, subagent calls, MCP tools, retrieval, reranking, citation verification, LLM generation, approvals, and exports.
+32. Includes Docker Compose services for the web app, Python RAG core, orchestrator, TypeScript MCP gateway, and an OpenTelemetry collector.
+33. Includes CI scaffolding for Python tests, TypeScript lint/typecheck/tests, MCP contract tests, container builds, and dependency/security checks.
 
 ```mermaid
 flowchart TD
@@ -207,6 +239,8 @@ flowchart TD
     Q --> R["Optional tool-calling citing agent"]
     Q --> API["FastAPI RAG core<br/>services/rag-core"]
     API --> TSMCP["TypeScript MCP gateway<br/>Streamable HTTP<br/>tools, resources, prompts"]
+    AUTH["OIDC/JWT auth context<br/>workspace, scopes, document filters, approvals"] --> TSMCP
+    TSMCP --> OTEL["OpenTelemetry spans<br/>IDs and metrics, no raw document text"]
 
     I --> SUP["Supervisor route decision"]
     SUP -->|simple factual| M
@@ -232,6 +266,8 @@ flowchart TD
 - **Use multi-agent only where it earns its keep.** Broad diligence requests need decomposition, evidence gathering, risk synthesis, audit, and report structure. Simple factual lookups stay on deterministic RAG because multi-agent adds cost, latency, and failure modes.
 - **Keep the final release gate deterministic.** The Citation Audit Agent can review support quality, but code still enforces quote verification. A claim with a failed citation check cannot enter the final multi-agent report.
 - **Add enterprise data-management concepts locally first.** The catalogue, semantic layer, taxonomy import, and graph are local JSON/NetworkX artifacts. That is deliberate: it demonstrates stewardship, lineage, controlled vocabulary, and graph-backed agent tools without pretending this prototype is a deployed enterprise catalogue or PoolParty/Neo4j service.
+- **Treat auth as execution context, not an LLM input.** The MCP gateway derives workspace, user, scopes, document filters, and approval grants from bearer-token claims. The model can ask for a tool call, but it cannot grant itself access by passing `tenant_id` or `access_level` as arguments.
+- **Add production controls as deployable scaffolding, not a premature cloud migration.** Docker, CI, OpenTelemetry, and a reference Terraform layout show how the system would move toward enterprise operation while keeping the local demo understandable.
 
 ## MCP And Agent Layer
 
@@ -318,13 +354,15 @@ returned `Route: deterministic_rag`.
 
 The gateway does not duplicate RAG logic. It calls the internal FastAPI core in `services/rag-core`, validates tool inputs and output envelopes with Zod, propagates correlation IDs, and returns typed recoverable errors instead of stack traces.
 
+It also uses `jose` for JWT validation and OpenTelemetry SDK/exporter packages for OTLP trace export when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured.
+
 | Surface | Names |
 |---|---|
 | Tools | `search_data_room`, `verify_citation`, `find_supporting_evidence`, `get_asset_lineage`, `rebuild_index`, `export_powerpoint_outline` |
 | Resources | `dataroom://documents/{document_id}`, `dataroom://chunks/{chunk_id}`, `dataroom://catalogue/{asset_id}`, `dataroom://evals/latest` |
 | Prompts | `diligence-risk-review`, `contract-concentration-analysis`, `evidence-gap-assessment` |
 
-Simple scopes are intentionally lightweight for the MVP:
+Simple scopes are intentionally lightweight for the MVP. In the default local mode, no token falls back to read-only access. When `MCP_AUTH_REQUIRED=true`, a bearer token is mandatory:
 
 | Token | Scopes |
 |---|---|
@@ -332,7 +370,26 @@ Simple scopes are intentionally lightweight for the MVP:
 | `Bearer write` | `documents:read`, `citations:verify`, `index:write`, `exports:write` |
 | `Bearer admin` | all local scopes |
 
+With `MCP_AUTH_REQUIRED=true`, the gateway validates bearer JWTs against either `MCP_JWKS_URL` or the local `MCP_DEV_JWT_SECRET` used for development. It requires a `workspace_id` or `tenant_id` claim, accepts standard `scope`/`scp` claims, supports `document_ids`/`allowed_documents` for document-level filters, and uses `approval_grants`/`approvals` for sensitive write tools such as `rebuild_index` and `export_powerpoint_outline`.
+
 The contract tests spin up the Python FastAPI service, connect to the TypeScript MCP server in memory, and compare MCP tool output with direct Python API output for retrieval, citation verification, evidence search, and lineage. They also confirm that a read-only client cannot call `rebuild_index`.
+
+## Enterprise Controls
+
+The production-facing additions are intentionally small but concrete:
+
+| Control | Implementation |
+|---|---|
+| Authentication | Streamable HTTP MCP gateway validates bearer JWTs, with local HS256 dev tokens and optional JWKS support |
+| Workspace identity | `workspace_id` or `tenant_id` is derived from the token and attached to the access context |
+| Tool authorization | Read/write/admin scopes gate MCP tools before Python is called |
+| Document authorization | Allowed document IDs from the token filter search results, resources, lineage, and provenance before content reaches the caller |
+| Human approval | Write tools require an approval grant in the authenticated context when `MCP_APPROVAL_REQUIRED=true` |
+| Observability | OpenTelemetry spans wrap agent routing, subagent calls, MCP tool calls, retrieval, reranking, citation checks, LLM calls, index rebuilds, and exports |
+| Confidentiality | Trace attributes use IDs, counts, roles, model IDs, prompt versions, and chunk IDs rather than raw confidential document text |
+| Containers | Separate local containers for `web`, `rag-core`, `orchestrator`, `mcp-server`, and `otel-collector` |
+| CI/CD | GitHub Actions run Python compile/tests/evals, TypeScript lint/typecheck/tests, MCP contract tests, container builds, and audit commands |
+| Cloud reference | Terraform sketch for AWS ECS/Fargate, S3 document storage, CloudWatch logs, and a place to add ALB/Postgres state |
 
 The data-management additions are intentionally modest:
 
@@ -481,6 +538,7 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 - It does not implement live SharePoint, Box, or CRM connectors. The MCP tool documents that boundary as a production extension.
 - It does not implement a production enterprise catalogue, semantic platform, Neo4j deployment, or PoolParty integration. It implements local, testable versions of those patterns.
 - It does not yet use LangGraph JS subgraphs. The current multi-agent workflow implements the same separation-of-responsibilities pattern inside the Python core first; LangGraph would be the next orchestration upgrade once persistence and human approvals need to be productionized.
+- It does not implement a full external identity provider, production secret manager, production data residency policy, or turnkey AWS deployment. JWT/JWKS, scopes, approvals, Docker, CI, telemetry hooks, and Terraform are present as the next deployable boundary.
 
 
 ## What I Would Do Differently With More Time
@@ -505,17 +563,35 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 |-- tsconfig.base.json
 |-- README.md
 |-- .env.example
+|-- .github/
+|   `-- workflows/
+|       `-- ci.yml                 # Python, TypeScript, MCP, container, and audit checks
+|-- docker-compose.yml             # Local service topology with OpenTelemetry collector
+|-- docker/
+|   |-- orchestrator.Dockerfile
+|   |-- rag-core.Dockerfile
+|   `-- web.Dockerfile
+|-- infra/
+|   |-- otel-collector.yaml
+|   `-- terraform/
+|       `-- aws-reference/         # Reference ECS/S3/CloudWatch Terraform sketch
 |-- apps/
 |   `-- mcp-server/                # TypeScript Streamable HTTP MCP gateway
+|       |-- Dockerfile
 |       |-- package.json
 |       |-- src/
+|       |   |-- accessControl.ts
+|       |   |-- auth.test.ts
+|       |   |-- auth.ts
 |       |   |-- config.ts
+|       |   |-- mintDevToken.ts
 |       |   |-- mcpGateway.contract.test.ts
 |       |   |-- mcpServer.ts
 |       |   |-- ragCoreClient.ts
 |       |   |-- schemas.ts
 |       |   |-- scopes.ts
-|       |   `-- server.ts
+|       |   |-- server.ts
+|       |   `-- telemetry.ts
 |       `-- vitest.config.ts
 |-- data/                          # Source PDFs
 |   `-- .gitkeep                  # PDFs are local-only and ignored by Git
@@ -544,8 +620,12 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 |   |-- smoke_deepseek.py
 |   `-- smoke_embeddings.py
 |-- services/
+|   |-- orchestrator/
+|   |   `-- app.py                 # FastAPI wrapper around deterministic / multi-agent routing
 |   `-- rag-core/
 |       `-- app.py                 # FastAPI wrapper around trusted Python functions
+|-- tests/
+|   `-- test_routing.py
 `-- src/
     |-- agent.py                   # Optional DeepSeek tool-calling agent loop
     |-- catalogue.py               # Local metadata catalogue and lineage model
@@ -562,5 +642,6 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
     |-- rag.py                     # End-to-end RAG orchestration
     |-- schemas.py                 # Pydantic data shapes
     |-- semantic.py                # Semantic concepts and evidence extraction
-    `-- taxonomy.py                # SKOS/Turtle taxonomy import and lookup
+    |-- taxonomy.py                # SKOS/Turtle taxonomy import and lookup
+    `-- telemetry.py               # Python OpenTelemetry helpers
 ```

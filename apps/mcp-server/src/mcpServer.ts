@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import { McpServer, ResourceTemplate, type CallToolResult } from "@modelcontextprotocol/server";
 
-import { ALL_SCOPES, type Scope } from "./config.js";
+import { filterEnvelopeForAccess } from "./accessControl.js";
+import { type AccessContext, hasApproval, hasScope } from "./auth.js";
+import { type Scope } from "./config.js";
 import { RagCoreClient } from "./ragCoreClient.js";
 import {
   ContractConcentrationPromptArgsSchema,
@@ -17,17 +19,31 @@ import {
   VerifyCitationInputSchema,
   type ApiEnvelope,
 } from "./schemas.js";
-import { hasScope } from "./scopes.js";
+import { withSpan } from "./telemetry.js";
 
 export type DataRoomMcpServerOptions = {
   ragCoreBaseUrl: string;
   scopes?: string[];
+  accessContext?: AccessContext;
+  approvalRequired?: boolean;
   correlationId?: string;
 };
 
 export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpServer {
   const correlationId = options.correlationId ?? randomUUID();
-  const scopes = options.scopes ?? ["documents:read", "citations:verify"];
+  const accessContext =
+    options.accessContext ??
+    ({
+      token: "read",
+      authMode: "dev-token",
+      clientId: "local-reader",
+      userId: "local-reader",
+      workspaceId: "local",
+      role: "reader",
+      scopes: options.scopes ?? ["documents:read", "citations:verify"],
+      allowedDocumentIds: [],
+      approvalGrants: [],
+    } satisfies AccessContext);
   const client = new RagCoreClient(options.ragCoreBaseUrl, correlationId);
   const server = new McpServer(
     {
@@ -54,7 +70,9 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
       },
     },
     async input =>
-      withScope(correlationId, scopes, "documents:read", () => client.searchDataRoom(input)),
+      withToolPolicy(correlationId, accessContext, "search_data_room", "documents:read", () =>
+        client.searchDataRoom(input),
+      ),
   );
 
   server.registerTool(
@@ -71,7 +89,9 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
       },
     },
     async input =>
-      withScope(correlationId, scopes, "citations:verify", () => client.verifyCitation(input)),
+      withToolPolicy(correlationId, accessContext, "verify_citation", "citations:verify", () =>
+        client.verifyCitation(input),
+      ),
   );
 
   server.registerTool(
@@ -88,7 +108,9 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
       },
     },
     async input =>
-      withScope(correlationId, scopes, "documents:read", () => client.findSupportingEvidence(input)),
+      withToolPolicy(correlationId, accessContext, "find_supporting_evidence", "documents:read", () =>
+        client.findSupportingEvidence(input),
+      ),
   );
 
   server.registerTool(
@@ -105,7 +127,9 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
       },
     },
     async input =>
-      withScope(correlationId, scopes, "documents:read", () => client.getAssetLineage(input)),
+      withToolPolicy(correlationId, accessContext, "get_asset_lineage", "documents:read", () =>
+        client.getAssetLineage(input),
+      ),
   );
 
   server.registerTool(
@@ -121,7 +145,15 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
         idempotentHint: true,
       },
     },
-    async input => withScope(correlationId, scopes, "index:write", () => client.rebuildIndex(input)),
+    async input =>
+      withToolPolicy(
+        correlationId,
+        accessContext,
+        "rebuild_index",
+        "index:write",
+        () => client.rebuildIndex(input),
+        { requiresApproval: options.approvalRequired ?? true },
+      ),
   );
 
   server.registerTool(
@@ -138,12 +170,17 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
       },
     },
     async input =>
-      withScope(correlationId, scopes, "exports:write", () =>
-        client.exportPowerPointOutline(input),
+      withToolPolicy(
+        correlationId,
+        accessContext,
+        "export_powerpoint_outline",
+        "exports:write",
+        () => client.exportPowerPointOutline(input),
+        { requiresApproval: options.approvalRequired ?? true },
       ),
   );
 
-  registerResources(server, client, correlationId, scopes);
+  registerResources(server, client, correlationId, accessContext);
   registerPrompts(server);
   return server;
 }
@@ -152,7 +189,7 @@ function registerResources(
   server: McpServer,
   client: RagCoreClient,
   correlationId: string,
-  scopes: string[],
+  accessContext: AccessContext,
 ): void {
   server.registerResource(
     "document",
@@ -165,7 +202,7 @@ function registerResources(
     async (uri, variables) =>
       resourceFromEnvelope(
         uri.href,
-        await readResourceEnvelope(correlationId, scopes, () =>
+        await readResourceEnvelope(correlationId, accessContext, () =>
           client.getDocument(oneValue(variables.document_id)),
         ),
       ),
@@ -182,7 +219,9 @@ function registerResources(
     async (uri, variables) =>
       resourceFromEnvelope(
         uri.href,
-        await readResourceEnvelope(correlationId, scopes, () => client.getChunk(oneValue(variables.chunk_id))),
+        await readResourceEnvelope(correlationId, accessContext, () =>
+          client.getChunk(oneValue(variables.chunk_id)),
+        ),
       ),
   );
 
@@ -197,7 +236,7 @@ function registerResources(
     async (uri, variables) =>
       resourceFromEnvelope(
         uri.href,
-        await readResourceEnvelope(correlationId, scopes, () =>
+        await readResourceEnvelope(correlationId, accessContext, () =>
           client.getDataAsset(oneValue(variables.asset_id)),
         ),
       ),
@@ -214,7 +253,7 @@ function registerResources(
     async uri =>
       resourceFromEnvelope(
         uri.href,
-        await readResourceEnvelope(correlationId, scopes, () => client.getLatestEvals()),
+        await readResourceEnvelope(correlationId, accessContext, () => client.getLatestEvals()),
       ),
   );
 }
@@ -281,28 +320,55 @@ function registerPrompts(server: McpServer): void {
   );
 }
 
-async function withScope(
+async function withToolPolicy(
   correlationId: string,
-  scopes: string[],
+  accessContext: AccessContext,
+  toolName: string,
   requiredScope: Scope,
   fn: () => Promise<ApiEnvelope>,
+  policy: { requiresApproval?: boolean } = {},
 ): Promise<CallToolResult> {
-  if (!hasScope(scopes, requiredScope)) {
+  if (!hasScope(accessContext.scopes, requiredScope)) {
     return envelopeToToolResult(
       {
         ok: false,
         correlation_id: correlationId,
         error: {
           code: "insufficient_scope",
-          message: `Required scope '${requiredScope}'. Granted scopes: ${scopes.join(", ") || "none"}.`,
+          message: `Required scope '${requiredScope}'. Granted scopes: ${accessContext.scopes.join(", ") || "none"}.`,
+        },
+      },
+      true,
+    );
+  }
+  if (policy.requiresApproval && !hasApproval(accessContext, toolName)) {
+    return envelopeToToolResult(
+      {
+        ok: false,
+        correlation_id: correlationId,
+        error: {
+          code: "approval_required",
+          message: `Tool '${toolName}' requires a human approval grant in the authenticated context.`,
         },
       },
       true,
     );
   }
   try {
-    const envelope = await fn();
-    return envelopeToToolResult(envelope, !envelope.ok);
+    const envelope = await withSpan(
+      "mcp.tool.call",
+      {
+        "correlation_id": correlationId,
+        "workspace_id": accessContext.workspaceId,
+        "user_role": accessContext.role,
+        "user_id": accessContext.userId,
+        "tool_name": toolName,
+        "auth.mode": accessContext.authMode,
+      },
+      fn,
+    );
+    const filtered = filterEnvelopeForAccess(envelope, accessContext);
+    return envelopeToToolResult(filtered, !filtered.ok);
   } catch (error) {
     return envelopeToToolResult(
       {
@@ -320,10 +386,10 @@ async function withScope(
 
 async function readResourceEnvelope(
   correlationId: string,
-  scopes: string[],
+  accessContext: AccessContext,
   fn: () => Promise<ApiEnvelope>,
 ): Promise<ApiEnvelope> {
-  if (!hasScope(scopes, "documents:read")) {
+  if (!hasScope(accessContext.scopes, "documents:read")) {
     return {
       ok: false,
       correlation_id: correlationId,
@@ -334,7 +400,16 @@ async function readResourceEnvelope(
     };
   }
   try {
-    return await fn();
+    const envelope = await withSpan(
+      "mcp.resource.read",
+      {
+        "correlation_id": correlationId,
+        "workspace_id": accessContext.workspaceId,
+        "user_role": accessContext.role,
+      },
+      fn,
+    );
+    return filterEnvelopeForAccess(envelope, accessContext);
   } catch (error) {
     return {
       ok: false,

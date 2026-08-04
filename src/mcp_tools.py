@@ -13,6 +13,7 @@ from src.embeddings import embed_one
 from src.index_builder import build_index
 from src.index_store import load_index, retrieve
 from src.schemas import Chunk
+from src.telemetry import span
 
 
 MAX_CHUNK_TEXT_CHARS = 5000
@@ -46,32 +47,41 @@ def search_data_room(query: str, top_k: int | None = None, semantic: bool = True
     settings = Settings.from_env()
     chunks, embeddings = load_index(settings.index_dir)
     selected_top_k = _clamp_top_k(top_k or settings.top_k)
-    if not semantic:
-        results = _lexical_search(query, chunks, selected_top_k)
+    with span(
+        "retrieval.search",
+        {
+            "retrieval.mode": "semantic" if semantic else "lexical",
+            "retrieval.top_k": selected_top_k,
+            "chunk_count": len(chunks),
+        },
+    ):
+        if not semantic:
+            results = _lexical_search(query, chunks, selected_top_k)
+            return {
+                "query": query,
+                "top_k": selected_top_k,
+                "mode": "lexical",
+                "results": [
+                    _chunk_payload(chunk, score=score, include_text=True) for chunk, score in results
+                ],
+            }
+
+        with span("retrieval.embed_query", {"embedding.model_id": settings.embedding_model_id}):
+            query_embedding = embed_one(query)
+        results = retrieve(
+            query_embedding=query_embedding,
+            chunks=chunks,
+            embeddings=embeddings,
+            top_k=selected_top_k,
+        )
         return {
             "query": query,
             "top_k": selected_top_k,
-            "mode": "lexical",
+            "mode": "semantic",
             "results": [
                 _chunk_payload(chunk, score=score, include_text=True) for chunk, score in results
             ],
         }
-
-    query_embedding = embed_one(query)
-    results = retrieve(
-        query_embedding=query_embedding,
-        chunks=chunks,
-        embeddings=embeddings,
-        top_k=selected_top_k,
-    )
-    return {
-        "query": query,
-        "top_k": selected_top_k,
-        "mode": "semantic",
-        "results": [
-            _chunk_payload(chunk, score=score, include_text=True) for chunk, score in results
-        ],
-    }
 
 
 def get_chunk(chunk_id: str) -> dict[str, Any]:
@@ -86,30 +96,31 @@ def get_chunk(chunk_id: str) -> dict[str, Any]:
 
 
 def verify_citation(chunk_id: str, quote: str) -> dict[str, Any]:
-    chunk = _chunk_by_id(chunk_id)
-    if chunk is None:
+    with span("citation.verify", {"chunk_id": chunk_id}):
+        chunk = _chunk_by_id(chunk_id)
+        if chunk is None:
+            return {
+                "verified": False,
+                "reason": "unknown_chunk_id",
+                "chunk_id": chunk_id,
+                "quote": quote,
+            }
+        if not quote.strip():
+            return {
+                "verified": False,
+                "reason": "empty_quote",
+                "chunk_id": chunk_id,
+                "source": chunk.source_label,
+                "quote": quote,
+            }
+        verified = quote_in_source(quote, chunk.text)
         return {
-            "verified": False,
-            "reason": "unknown_chunk_id",
-            "chunk_id": chunk_id,
-            "quote": quote,
-        }
-    if not quote.strip():
-        return {
-            "verified": False,
-            "reason": "empty_quote",
+            "verified": verified,
+            "reason": "verified" if verified else "quote_not_found_in_source_text",
             "chunk_id": chunk_id,
             "source": chunk.source_label,
             "quote": quote,
         }
-    verified = quote_in_source(quote, chunk.text)
-    return {
-        "verified": verified,
-        "reason": "verified" if verified else "quote_not_found_in_source_text",
-        "chunk_id": chunk_id,
-        "source": chunk.source_label,
-        "quote": quote,
-    }
 
 
 def get_document_coverage() -> dict[str, Any]:
@@ -171,7 +182,8 @@ def get_document_coverage() -> dict[str, Any]:
 
 def rebuild_index(contextualize: bool | None = None) -> dict[str, Any]:
     settings = Settings.from_env()
-    result = build_index(settings, contextualize=contextualize)
+    with span("index.rebuild", {"contextualize": contextualize}):
+        result = build_index(settings, contextualize=contextualize)
     return {
         "chunk_count": result.chunk_count,
         "embedding_shape": result.embedding_shape,
@@ -195,7 +207,15 @@ def export_powerpoint_outline(
     safe_name = _safe_export_name(filename or title)
     output_path = _unique_export_path(settings.export_dir / f"{safe_name}.md")
     content = f"# {title.strip() or 'Data Room Cited Outline'}\n\n{outline_markdown.strip()}\n"
-    output_path.write_text(content, encoding="utf-8")
+    with span(
+        "export.create",
+        {
+            "export.format": "markdown_powerpoint_outline",
+            "export.filename": output_path.name,
+            "export.characters": len(content),
+        },
+    ):
+        output_path.write_text(content, encoding="utf-8")
     try:
         chunks = _load_chunks_or_empty(settings)
         catalogue.save_catalogue(settings, catalogue.build_catalogue(settings, chunks))

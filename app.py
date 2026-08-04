@@ -10,9 +10,11 @@ from src.diligence_agents import answer_with_diligence_supervisor
 from src.index_builder import build_index
 from src.index_store import load_index
 from src.rag import answer_from_index
+from src.telemetry import setup_telemetry
 
 
 st.set_page_config(page_title="Data Room Cited", layout="wide")
+setup_telemetry("data-room-cited.web")
 
 settings = Settings.from_env()
 settings.data_dir.mkdir(parents=True, exist_ok=True)

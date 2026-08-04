@@ -8,6 +8,7 @@ from src.embeddings import embed_one
 from src.index_store import load_index, retrieve
 from src.llm import RerankCandidate, answer_question, create_chat_provider, listwise_rerank
 from src.schemas import Chunk
+from src.telemetry import span
 
 
 LOGGER = logging.getLogger(__name__)
@@ -45,19 +46,29 @@ def answer_from_index(question: str, settings: Settings | None = None) -> str:
     provider = create_chat_provider(settings)
     chunks, embeddings = load_index(settings.index_dir)
 
-    if is_broad_question(question):
-        LOGGER.info("Using whole-corpus context for broad question.")
-        selected = [_candidate_from_chunk(chunk) for chunk in chunks]
-    else:
-        query_embedding = embed_one(question)
-        initial = retrieve(
-            query_embedding=query_embedding,
-            chunks=chunks,
-            embeddings=embeddings,
-            top_k=max(settings.top_k_initial, settings.top_k),
-        )
-        candidates = [_candidate_from_chunk(chunk, score=score) for chunk, score in initial]
-        selected = _rerank_or_fallback(provider, settings, question, candidates)
+    route = "whole_corpus" if is_broad_question(question) else "retrieval_top_k"
+    with span("agent.route", {"agent.route": route, "chunk_count": len(chunks)}):
+        if is_broad_question(question):
+            LOGGER.info("Using whole-corpus context for broad question.")
+            selected = [_candidate_from_chunk(chunk) for chunk in chunks]
+        else:
+            with span("retrieval.embed_query", {"embedding.model_id": settings.embedding_model_id}):
+                query_embedding = embed_one(question)
+            with span(
+                "retrieval.search",
+                {
+                    "retrieval.mode": "semantic",
+                    "retrieval.top_k": max(settings.top_k_initial, settings.top_k),
+                },
+            ):
+                initial = retrieve(
+                    query_embedding=query_embedding,
+                    chunks=chunks,
+                    embeddings=embeddings,
+                    top_k=max(settings.top_k_initial, settings.top_k),
+                )
+            candidates = [_candidate_from_chunk(chunk, score=score) for chunk, score in initial]
+            selected = _rerank_or_fallback(provider, settings, question, candidates)
 
     source_label_by_chunk_id = {candidate.id: candidate.source or "Unknown source" for candidate in selected}
     source_text_by_chunk_id = {candidate.id: candidate.text for candidate in selected}

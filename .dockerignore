@@ -1,0 +1,14 @@
+.venv/
+node_modules/
+apps/*/node_modules/
+apps/*/dist/
+__pycache__/
+*.pyc
+.git/
+.pytest_cache/
+.env
+data/*.pdf
+index/*.json
+index/*.npy
+exports/*.md
+exports/*.txt

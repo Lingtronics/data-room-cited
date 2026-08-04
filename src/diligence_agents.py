@@ -14,6 +14,7 @@ from src import mcp_tools
 from src.config import Settings
 from src.rag import answer_from_index, is_broad_question
 from src.schemas import Citation
+from src.telemetry import span
 
 
 LOGGER = logging.getLogger(__name__)
@@ -206,7 +207,15 @@ class _AgentRuntime:
         self.tool_calls += 1
         self.record(agent, "tool_call", "started", f"{tool_name}({json.dumps(args, ensure_ascii=False)})")
         self.check_budget()
-        result = _dispatch_tool(tool_name, args)
+        with span(
+            "mcp.tool.call",
+            {
+                "agent_name": agent,
+                "tool_name": tool_name,
+                "workspace_id": "local",
+            },
+        ):
+            result = _dispatch_tool(tool_name, args)
         self.record(agent, "tool_call", "ok", f"{tool_name} returned {_result_size(result)}")
         return result
 
@@ -242,20 +251,21 @@ def answer_with_diligence_supervisor(
     runtime = _AgentRuntime(settings, budget)
     runtime.record(SUPERVISOR, "route_decision", "started", "Classifying request.")
 
-    if not settings.multi_agent_enabled and not force_multi_agent:
-        runtime.record(SUPERVISOR, "route_decision", "deterministic", "Multi-agent workflow disabled.")
-        answer = answer_from_index(question, settings)
-        return _result("deterministic_rag", answer, runtime)
+    with span("agent.route", {"agent.route": "supervisor", "workspace_id": "local"}):
+        if not settings.multi_agent_enabled and not force_multi_agent:
+            runtime.record(SUPERVISOR, "route_decision", "deterministic", "Multi-agent workflow disabled.")
+            answer = answer_from_index(question, settings)
+            return _result("deterministic_rag", answer, runtime)
 
-    if not force_multi_agent and not is_broad_question(question):
-        runtime.record(
-            SUPERVISOR,
-            "route_decision",
-            "deterministic",
-            "Simple factual request stays on the lower-cost RAG path.",
-        )
-        answer = answer_from_index(question, settings)
-        return _result("deterministic_rag", answer, runtime)
+        if not force_multi_agent and not is_broad_question(question):
+            runtime.record(
+                SUPERVISOR,
+                "route_decision",
+                "deterministic",
+                "Simple factual request stays on the lower-cost RAG path.",
+            )
+            answer = answer_from_index(question, settings)
+            return _result("deterministic_rag", answer, runtime)
 
     runtime.record(
         SUPERVISOR,
@@ -801,17 +811,26 @@ def _call_structured_function(
     last_error: Exception | None = None
     for attempt in range(runtime.budget.max_retries + 1):
         runtime.use_model(agent, f"{function_name}, attempt {attempt + 1}")
-        response = client.chat.completions.create(
-            model=runtime.settings.llm_model_id,
-            temperature=0.0,
-            max_tokens=max_tokens,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            tools=[tool_spec],
-            tool_choice={"type": "function", "function": {"name": function_name}},
-        )
+        with span(
+            "agent.subagent.invoke",
+            {
+                "agent_name": agent,
+                "model_id": runtime.settings.llm_model_id,
+                "prompt_version": function_name,
+                "llm.max_tokens": max_tokens,
+            },
+        ):
+            response = client.chat.completions.create(
+                model=runtime.settings.llm_model_id,
+                temperature=0.0,
+                max_tokens=max_tokens,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                tools=[tool_spec],
+                tool_choice={"type": "function", "function": {"name": function_name}},
+            )
         message = response.choices[0].message
         tool_calls = message.tool_calls or []
         try:

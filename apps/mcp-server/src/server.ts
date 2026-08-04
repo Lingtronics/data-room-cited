@@ -10,23 +10,35 @@ import {
   type NodeServerResponseLike,
 } from "@modelcontextprotocol/node";
 
+import {
+  accessContextFromAuthInfo,
+  authenticateRequest,
+  authInfoFromAccessContext,
+  AuthError,
+} from "./auth.js";
 import { loadGatewayConfig } from "./config.js";
 import { createDataRoomMcpServer } from "./mcpServer.js";
-import { authInfoFromAuthorization } from "./scopes.js";
+import { setupTelemetry } from "./otel.js";
 
 type AuthenticatedIncomingMessage = IncomingMessage & { auth?: AuthInfo };
 
 const config = loadGatewayConfig();
+setupTelemetry("data-room-cited.mcp-server");
 const validateHost = localhostHostValidation();
 const validateOrigin = localhostOriginValidation();
 
 const handler = createMcpHandler(
-  ctx =>
-    createDataRoomMcpServer({
+  ctx => {
+    const accessContext = accessContextFromAuthInfo(ctx.authInfo);
+    const options = {
       ragCoreBaseUrl: config.ragCoreBaseUrl,
       correlationId: ctx.requestInfo?.headers.get("x-correlation-id") ?? randomUUID(),
-      scopes: ctx.authInfo?.scopes ?? config.defaultScopes,
-    }),
+      approvalRequired: config.approvalRequired,
+    };
+    return createDataRoomMcpServer(
+      accessContext === undefined ? options : { ...options, accessContext },
+    );
+  },
   {
     responseMode: "json",
     onerror: error => {
@@ -42,6 +54,10 @@ const nodeHandler = toNodeHandler(handler, {
 });
 
 const server = http.createServer((req: AuthenticatedIncomingMessage, res: ServerResponse) => {
+  void handleRequest(req, res);
+});
+
+async function handleRequest(req: AuthenticatedIncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
   if (url.pathname === "/health") {
@@ -68,9 +84,23 @@ const server = http.createServer((req: AuthenticatedIncomingMessage, res: Server
     return;
   }
 
-  req.auth = authInfoFromAuthorization(req.headers.authorization, config.defaultScopes);
+  try {
+    const accessContext = await authenticateRequest(req.headers.authorization, config);
+    req.auth = authInfoFromAccessContext(accessContext);
+  } catch (error) {
+    const statusCode = error instanceof AuthError ? error.statusCode : 401;
+    writeJson(res, statusCode, {
+      ok: false,
+      error: {
+        code: error instanceof AuthError ? error.code : "unauthorized",
+        message: error instanceof Error ? error.message : String(error),
+      },
+    });
+    return;
+  }
+
   void nodeHandler(req as NodeIncomingMessageLike, res as NodeServerResponseLike);
-});
+}
 
 server.listen(config.port, () => {
   console.log(
