@@ -12,9 +12,11 @@ import {
   ExportPowerPointOutlineInputSchema,
   FindSupportingEvidenceInputSchema,
   GetAssetLineageInputSchema,
+  NoInputSchema,
   RebuildIndexInputSchema,
   RiskReviewPromptArgsSchema,
   SearchDataRoomInputSchema,
+  SyncDocumentSourceInputSchema,
   ToolEnvelopeSchema,
   VerifyCitationInputSchema,
   type ApiEnvelope,
@@ -44,7 +46,7 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
       allowedDocumentIds: [],
       approvalGrants: [],
     } satisfies AccessContext);
-  const client = new RagCoreClient(options.ragCoreBaseUrl, correlationId);
+  const client = new RagCoreClient(options.ragCoreBaseUrl, correlationId, accessContext);
   const server = new McpServer(
     {
       name: "data-room-cited-typescript-gateway",
@@ -129,6 +131,49 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
     async input =>
       withToolPolicy(correlationId, accessContext, "get_asset_lineage", "documents:read", () =>
         client.getAssetLineage(input),
+      ),
+  );
+
+  server.registerTool(
+    "list_document_source_documents",
+    {
+      title: "List Document Source Documents",
+      description: "List documents visible through the configured local or S3 document source.",
+      inputSchema: NoInputSchema,
+      outputSchema: ToolEnvelopeSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+    },
+    async () =>
+      withToolPolicy(correlationId, accessContext, "list_document_source_documents", "documents:read", () =>
+        client.listDocumentSourceDocuments(),
+      ),
+  );
+
+  server.registerTool(
+    "sync_document_source",
+    {
+      title: "Sync Document Source",
+      description: "Sync the configured local or S3 document source into data/ and optionally rebuild the index.",
+      inputSchema: SyncDocumentSourceInputSchema,
+      outputSchema: ToolEnvelopeSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+    },
+    async input =>
+      withToolPolicy(
+        correlationId,
+        accessContext,
+        "sync_document_source",
+        "index:write",
+        () => client.syncDocumentSource(input),
+        { requiresApproval: options.approvalRequired ?? true },
       ),
   );
 

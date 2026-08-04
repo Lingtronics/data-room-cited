@@ -46,6 +46,7 @@ INDEX_DIR = _path_from_env("INDEX_DIR", "index")
 EXPORT_DIR = _path_from_env("EXPORT_DIR", "exports")
 SEMANTIC_DIR = _path_from_env("SEMANTIC_DIR", "semantic")
 TAXONOMY_DIR = _path_from_env("TAXONOMY_DIR", "taxonomy")
+SOURCE_MANIFEST_PATH = _path_from_env("SOURCE_MANIFEST_PATH", "index/source_manifest.json")
 CHUNKS_PATH = INDEX_DIR / "chunks.json"
 EMBEDDINGS_PATH = INDEX_DIR / "embeddings.npy"
 CATALOGUE_PATH = INDEX_DIR / "catalogue.json"
@@ -69,6 +70,11 @@ MULTI_AGENT_MAX_TOOL_CALLS = _int_from_env("MULTI_AGENT_MAX_TOOL_CALLS", 50)
 MULTI_AGENT_MAX_RETRIES = _int_from_env("MULTI_AGENT_MAX_RETRIES", 1)
 MULTI_AGENT_MAX_ELAPSED_SECONDS = _int_from_env("MULTI_AGENT_MAX_ELAPSED_SECONDS", 180)
 MULTI_AGENT_MAX_CONTEXT_CHARS = _int_from_env("MULTI_AGENT_MAX_CONTEXT_CHARS", 40000)
+DOCUMENT_SOURCE_TYPE = os.getenv("DOCUMENT_SOURCE_TYPE", "local")
+LOCAL_SOURCE_DIR = _path_from_env("LOCAL_SOURCE_DIR", "data")
+S3_SOURCE_BUCKET = os.getenv("S3_SOURCE_BUCKET") or None
+S3_SOURCE_PREFIX = os.getenv("S3_SOURCE_PREFIX", "")
+S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL") or None
 
 INDEX_DIR.mkdir(parents=True, exist_ok=True)
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -98,6 +104,7 @@ class Settings(BaseModel):
     semantic_index_path: Path = Field(default=SEMANTIC_INDEX_PATH)
     knowledge_graph_path: Path = Field(default=KNOWLEDGE_GRAPH_PATH)
     taxonomy_path: Path = Field(default=TAXONOMY_PATH)
+    source_manifest_path: Path = Field(default=SOURCE_MANIFEST_PATH)
     top_k: int = Field(default=TOP_K, ge=1)
     top_k_initial: int = Field(default=TOP_K_INITIAL, ge=1)
     chunk_target_chars: int = Field(default=CHUNK_TARGET_CHARS, ge=200)
@@ -112,6 +119,11 @@ class Settings(BaseModel):
     multi_agent_max_retries: int = Field(default=MULTI_AGENT_MAX_RETRIES, ge=0)
     multi_agent_max_elapsed_seconds: int = Field(default=MULTI_AGENT_MAX_ELAPSED_SECONDS, ge=10)
     multi_agent_max_context_chars: int = Field(default=MULTI_AGENT_MAX_CONTEXT_CHARS, ge=5000)
+    document_source_type: str = Field(default=DOCUMENT_SOURCE_TYPE)
+    local_source_dir: Path = Field(default=LOCAL_SOURCE_DIR)
+    s3_source_bucket: str | None = Field(default=S3_SOURCE_BUCKET)
+    s3_source_prefix: str = Field(default=S3_SOURCE_PREFIX)
+    s3_endpoint_url: str | None = Field(default=S3_ENDPOINT_URL)
 
     @classmethod
     def from_env(cls, env_file: str | Path = PROJECT_ROOT / ".env") -> "Settings":
@@ -156,6 +168,7 @@ class Settings(BaseModel):
             taxonomy_path=_path_from_env(
                 "TAXONOMY_PATH", str(TAXONOMY_PATH.relative_to(PROJECT_ROOT))
             ),
+            source_manifest_path=_path_from_env("SOURCE_MANIFEST_PATH", "index/source_manifest.json"),
             top_k=_int_from_env("TOP_K", TOP_K),
             top_k_initial=_int_from_env("TOP_K_INITIAL", TOP_K_INITIAL),
             chunk_target_chars=chunk_target_chars,
@@ -184,6 +197,11 @@ class Settings(BaseModel):
             multi_agent_max_context_chars=_int_from_env(
                 "MULTI_AGENT_MAX_CONTEXT_CHARS", MULTI_AGENT_MAX_CONTEXT_CHARS
             ),
+            document_source_type=os.getenv("DOCUMENT_SOURCE_TYPE", DOCUMENT_SOURCE_TYPE),
+            local_source_dir=_path_from_env("LOCAL_SOURCE_DIR", "data"),
+            s3_source_bucket=os.getenv("S3_SOURCE_BUCKET") or None,
+            s3_source_prefix=os.getenv("S3_SOURCE_PREFIX", S3_SOURCE_PREFIX),
+            s3_endpoint_url=os.getenv("S3_ENDPOINT_URL") or None,
         )
 
     @property

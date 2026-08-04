@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src import mcp_tools
+from src.document_sources import AccessContext
 from src.telemetry import setup_telemetry, span
 
 
@@ -51,6 +52,11 @@ class ExportOutlineRequest(BaseModel):
     title: str = Field(min_length=1)
     outline_markdown: str = Field(min_length=1)
     filename: str | None = None
+
+
+class SyncDocumentSourceRequest(BaseModel):
+    rebuild: bool = False
+    contextualize: bool | None = None
 
 
 app = FastAPI(
@@ -171,6 +177,37 @@ def get_data_asset(
     return _call(response, x_correlation_id, lambda: mcp_tools.get_data_asset(asset_id=asset_id))
 
 
+@app.get("/connectors/documents")
+def list_document_source_documents(
+    request: Request,
+    response: Response,
+    x_correlation_id: str | None = Header(default=None),
+) -> SuccessEnvelope[dict[str, Any]] | ErrorEnvelope:
+    return _call(
+        response,
+        x_correlation_id,
+        lambda: mcp_tools.list_document_source_documents(_access_context_from_headers(request)),
+    )
+
+
+@app.post("/connectors/sync")
+def sync_configured_document_source(
+    request: SyncDocumentSourceRequest,
+    http_request: Request,
+    response: Response,
+    x_correlation_id: str | None = Header(default=None),
+) -> SuccessEnvelope[dict[str, Any]] | ErrorEnvelope:
+    return _call(
+        response,
+        x_correlation_id,
+        lambda: mcp_tools.sync_configured_document_source(
+            rebuild=request.rebuild,
+            contextualize=request.contextualize,
+            access_context=_access_context_from_headers(http_request),
+        ),
+    )
+
+
 @app.get("/graph/evidence")
 def find_supporting_evidence(
     response: Response,
@@ -268,3 +305,19 @@ def _call(
 
 def _ok(data: dict[str, Any], correlation_id: str | None) -> SuccessEnvelope[dict[str, Any]]:
     return SuccessEnvelope(correlation_id=correlation_id or str(uuid.uuid4()), data=data)
+
+
+def _access_context_from_headers(request: Request) -> AccessContext:
+    return AccessContext(
+        workspace_id=request.headers.get("x-workspace-id", "local"),
+        user_id=request.headers.get("x-user-id", "internal-service"),
+        role=request.headers.get("x-user-role", "reader"),
+        scopes=_split_header(request.headers.get("x-auth-scopes")),
+        allowed_document_ids=_split_header(request.headers.get("x-allowed-document-ids")),
+    )
+
+
+def _split_header(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]

@@ -5,11 +5,12 @@ import re
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from src.config import Settings
+from src.document_sources import SourceSyncRecord, load_source_manifest
 from src.index_store import load_index
 from src.schemas import Chunk
 
@@ -40,7 +41,7 @@ class DataAsset(BaseModel):
     upstream: list[LineageRef] = Field(default_factory=list, description="Assets this asset depends on.")
     downstream: list[LineageRef] = Field(default_factory=list, description="Assets derived from this asset.")
     warnings: list[str] = Field(default_factory=list, description="Quality or governance warnings.")
-    metadata: dict[str, str | int | float | bool | None] = Field(
+    metadata: dict[str, Any] = Field(
         default_factory=dict,
         description="Additional local metadata for inspection.",
     )
@@ -58,6 +59,7 @@ def build_catalogue(settings: Settings, chunks: list[Chunk]) -> Catalogue:
         chunks_by_doc[chunk.doc].append(chunk)
 
     pdfs_by_name = {pdf.name: pdf for pdf in sorted(settings.data_dir.glob("*.pdf"))}
+    source_records = _source_records_by_filename(settings)
     assets: list[DataAsset] = []
     doc_asset_ids: dict[str, str] = {}
 
@@ -66,7 +68,10 @@ def build_catalogue(settings: Settings, chunks: list[Chunk]) -> Catalogue:
         doc_asset_id = _document_asset_id(doc_name)
         doc_asset_ids[doc_name] = doc_asset_id
         pages = sorted({page for chunk in doc_chunks for page in range(chunk.start_page, chunk.end_page + 1)})
+        source_record = source_records.get(doc_name)
         classification = _classification_for_document(doc_name, doc_chunks)
+        if source_record:
+            classification = source_record.metadata.data_classification or classification
         status: ExtractionStatus = "indexed"
         warnings: list[str] = []
         if doc_name in pdfs_by_name and not doc_chunks:
@@ -81,12 +86,16 @@ def build_catalogue(settings: Settings, chunks: list[Chunk]) -> Catalogue:
                 asset_type="document",
                 title=Path(doc_name).stem.replace("_", " "),
                 owner="Unknown",
-                source_system="local data/ folder",
+                source_system=source_record.metadata.source_system if source_record else "local data/ folder",
                 data_classification=classification,
-                sensitivity_level=_sensitivity_for(classification, doc_name),
+                sensitivity_level=(
+                    source_record.metadata.sensitivity_level
+                    if source_record
+                    else _sensitivity_for(classification, doc_name)
+                ),
                 business_domain=_business_domain_for(doc_name, doc_chunks),
                 ingestion_timestamp=generated_at,
-                document_version=_version_for(doc_name),
+                document_version=source_record.metadata.version if source_record else _version_for(doc_name),
                 extraction_status=status,
                 indexed_pages=pages,
                 chunk_ids=[chunk.chunk_id for chunk in doc_chunks],
@@ -95,6 +104,7 @@ def build_catalogue(settings: Settings, chunks: list[Chunk]) -> Catalogue:
                     "filename": doc_name,
                     "size_bytes": pdfs_by_name[doc_name].stat().st_size if doc_name in pdfs_by_name else None,
                     "indexed_chunks": len(doc_chunks),
+                    **_source_metadata(source_record),
                 },
             )
         )
@@ -282,6 +292,30 @@ def _with_downstream(catalogue: Catalogue) -> Catalogue:
 def _asset_by_id(asset_id: str, settings: Settings | None) -> DataAsset | None:
     catalogue = load_catalogue(settings)
     return next((asset for asset in catalogue.assets if asset.asset_id == asset_id), None)
+
+
+def _source_records_by_filename(settings: Settings) -> dict[str, SourceSyncRecord]:
+    manifest = load_source_manifest(settings.source_manifest_path)
+    if manifest is None:
+        return {}
+    return {
+        Path(record.local_path).name: record
+        for record in manifest.records.values()
+    }
+
+
+def _source_metadata(record: SourceSyncRecord | None) -> dict:
+    if record is None:
+        return {}
+    return {
+        "source_document_id": record.metadata.document_id,
+        "source_uri": record.metadata.uri,
+        "source_content_hash": record.metadata.content_hash,
+        "source_version": record.metadata.version,
+        "source_last_modified": record.metadata.last_modified,
+        "source_synced_at": record.synced_at,
+        "source_acl": record.metadata.acl,
+    }
 
 
 def _asset_summary(asset: DataAsset) -> dict:

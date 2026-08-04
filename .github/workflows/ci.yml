@@ -27,6 +27,8 @@ jobs:
           else
             echo "Skipping evaluation harness: generated index files are not committed."
           fi
+      - name: Release gate fixture
+        run: python scripts/evaluate_release_gate.py --fixture --skip-external-gates
       - name: Python dependency scan
         continue-on-error: true
         run: |

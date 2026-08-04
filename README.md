@@ -57,6 +57,37 @@ Run the small data-management eval harness:
 .\.venv\Scripts\python.exe scripts\evaluate_data_management.py
 ```
 
+Run the release gate in CI-safe fixture mode:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate_release_gate.py --fixture --skip-external-gates
+```
+
+Run the release gate against the local private data-room index:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate_release_gate.py --skip-external-gates
+```
+
+The full release gate is the Python release gate plus the TypeScript MCP contract test:
+
+```powershell
+pnpm --filter @data-room-cited/mcp-server test
+.\.venv\Scripts\python.exe scripts\evaluate_release_gate.py --fixture --mcp-contract-passed
+```
+
+Sync documents from the configured source into `data/`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\sync_document_source.py
+```
+
+For S3, set `DOCUMENT_SOURCE_TYPE=s3`, `S3_SOURCE_BUCKET`, and optionally `S3_SOURCE_PREFIX` / `S3_ENDPOINT_URL`. Then run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\sync_document_source.py --rebuild-index --no-contextualize
+```
+
 Ask from the CLI:
 
 ```powershell
@@ -208,6 +239,8 @@ Consultant stress-test prompts are in [`docs/consultant_stress_tests.md`](docs/c
 31. Emits OpenTelemetry span hooks across routing, subagent calls, MCP tools, retrieval, reranking, citation verification, LLM generation, approvals, and exports.
 32. Includes Docker Compose services for the web app, Python RAG core, orchestrator, TypeScript MCP gateway, and an OpenTelemetry collector.
 33. Includes CI scaffolding for Python tests, TypeScript lint/typecheck/tests, MCP contract tests, container builds, and dependency/security checks.
+34. Runs a versioned release gate over retrieval hit@5, citation validity, claim support, cross-document evidence, abstention, contradiction evidence, prompt injection, access isolation, safe tool failure, routing, and human approval.
+35. Supports a real `DocumentSource` connector boundary with local-file and S3 implementations, incremental cursors, content hash/version tracking, source ACL metadata, deleted-document handling, idempotent sync, and catalogue lineage.
 
 ```mermaid
 flowchart TD
@@ -241,6 +274,10 @@ flowchart TD
     API --> TSMCP["TypeScript MCP gateway<br/>Streamable HTTP<br/>tools, resources, prompts"]
     AUTH["OIDC/JWT auth context<br/>workspace, scopes, document filters, approvals"] --> TSMCP
     TSMCP --> OTEL["OpenTelemetry spans<br/>IDs and metrics, no raw document text"]
+    SRC["DocumentSource<br/>local files or S3"] --> SYNC["Incremental sync<br/>hash, version, ACL, deleted docs"]
+    SYNC --> A
+    SYNC --> CATA
+    EVAL["Versioned release gate<br/>retrieval, citations, access, routing, approval"] --> API
 
     I --> SUP["Supervisor route decision"]
     SUP -->|simple factual| M
@@ -268,6 +305,8 @@ flowchart TD
 - **Add enterprise data-management concepts locally first.** The catalogue, semantic layer, taxonomy import, and graph are local JSON/NetworkX artifacts. That is deliberate: it demonstrates stewardship, lineage, controlled vocabulary, and graph-backed agent tools without pretending this prototype is a deployed enterprise catalogue or PoolParty/Neo4j service.
 - **Treat auth as execution context, not an LLM input.** The MCP gateway derives workspace, user, scopes, document filters, and approval grants from bearer-token claims. The model can ask for a tool call, but it cannot grant itself access by passing `tenant_id` or `access_level` as arguments.
 - **Add production controls as deployable scaffolding, not a premature cloud migration.** Docker, CI, OpenTelemetry, and a reference Terraform layout show how the system would move toward enterprise operation while keeping the local demo understandable.
+- **Use evals as release criteria, not demo theatre.** The release gate is versioned and deterministic first, so CI can fail on broken retrieval, citation matching, access isolation, routing, approval gates, or safe-failure behavior before anyone watches a polished demo.
+- **Implement one connector well before naming many.** The connector layer now has local-file and S3 implementations behind the same `DocumentSource` interface. SharePoint can use the same shape later, but the current repo has one real enterprise-style adapter path rather than a list of aspirational integrations.
 
 ## MCP And Agent Layer
 
@@ -296,6 +335,8 @@ The MCP layer turns the app's reliable internal capabilities into callable tools
 | `get_data_asset` | Inspect one catalogue asset |
 | `get_asset_lineage` | Trace document-to-chunk-to-artifact lineage |
 | `get_data_quality_status` | Summarize extraction status and data-quality warnings |
+| `list_document_source_documents` | List documents visible through the configured local or S3 source |
+| `sync_configured_document_source` | Sync the configured source into `data/` and optionally rebuild the index |
 | `list_business_concepts` | List canonical diligence concepts and mention counts |
 | `resolve_business_term` | Resolve source terminology to canonical business concepts |
 | `search_by_entity` | Search semantic mentions and evidence |
@@ -358,7 +399,7 @@ It also uses `jose` for JWT validation and OpenTelemetry SDK/exporter packages f
 
 | Surface | Names |
 |---|---|
-| Tools | `search_data_room`, `verify_citation`, `find_supporting_evidence`, `get_asset_lineage`, `rebuild_index`, `export_powerpoint_outline` |
+| Tools | `search_data_room`, `verify_citation`, `find_supporting_evidence`, `get_asset_lineage`, `list_document_source_documents`, `sync_document_source`, `rebuild_index`, `export_powerpoint_outline` |
 | Resources | `dataroom://documents/{document_id}`, `dataroom://chunks/{chunk_id}`, `dataroom://catalogue/{asset_id}`, `dataroom://evals/latest` |
 | Prompts | `diligence-risk-review`, `contract-concentration-analysis`, `evidence-gap-assessment` |
 
@@ -391,6 +432,42 @@ The production-facing additions are intentionally small but concrete:
 | CI/CD | GitHub Actions run Python compile/tests/evals, TypeScript lint/typecheck/tests, MCP contract tests, container builds, and audit commands |
 | Cloud reference | Terraform sketch for AWS ECS/Fargate, S3 document storage, CloudWatch logs, and a place to add ALB/Postgres state |
 
+## Release Gate
+
+`evals/release_gate_v1.json` defines the first release suite. `scripts/evaluate_release_gate.py` executes it and exits non-zero when a non-skipped gate fails.
+
+| Gate | Threshold |
+|---|---|
+| Citation-string validity | `100%` |
+| Unsupported factual claims | `0` |
+| Restricted-document leakage | `0` |
+| MCP schema/contract pass rate | `100%`, enforced by the TypeScript MCP test job |
+| Retrieval hit@5 | `>= 90%` |
+| Workflow completion rate | `>= 95%` |
+| Write actions without approval | `0` |
+
+The release gate records latency by suite and keeps model cost as a measured field rather than inventing budgets before benchmark data exists. The current fixture suite is deterministic and CI-safe; the same script can run against the private local index when the data-room PDFs are present. Cases can be marked fixture-only or local-only so synthetic safety checks do not falsely fail a real private index that lacks those synthetic documents.
+
+## Document Sources
+
+`src/document_sources.py` defines a real connector interface:
+
+```python
+class DocumentSource(Protocol):
+    def list_documents(self, context: AccessContext) -> list[DocumentMetadata]: ...
+    def download_document(self, document_id: str, context: AccessContext) -> BinaryIO: ...
+    def get_changes(self, cursor: str | None, context: AccessContext) -> ChangeSet: ...
+```
+
+Implemented sources:
+
+| Source | What it demonstrates |
+|---|---|
+| `LocalFileDocumentSource` | Local PDF discovery, SHA-256 content hashes, sidecar ACL JSON, incremental cursor, deleted-document handling, idempotent sync |
+| `S3DocumentSource` | S3 bucket/prefix discovery, ETag/version tracking, object tags/metadata, ACL metadata, incremental cursor, streaming download |
+
+`scripts/sync_document_source.py` writes synced PDFs into `data/` and persists `index/source_manifest.json`. The catalogue reads that manifest so document assets carry source-system URI, version, content hash, sync timestamp, ACL metadata, and lineage into chunks and generated artifacts.
+
 The data-management additions are intentionally modest:
 
 - The catalogue is a local JSON snapshot in `index/catalogue.json`.
@@ -411,6 +488,8 @@ Tool discovery for the Python stdio MCP server returned the registered tools. Sa
     "get_chunk",
     "verify_citation",
     "get_document_coverage",
+    "list_document_source_documents",
+    "sync_configured_document_source",
     "rebuild_index",
     "export_powerpoint_outline",
     "enterprise_connector_plan"
@@ -535,22 +614,22 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 - It does not guarantee that all risks are found. It gives a grounded first-pass view over extracted text.
 - It does not treat generated contextualisation as source evidence.
 - It does not show the past conversations.
-- It does not implement live SharePoint, Box, or CRM connectors. The MCP tool documents that boundary as a production extension.
+- It does not implement live SharePoint, Box, or CRM connectors. It implements local-file and S3 document sources first; SharePoint/Box/CRM would follow the same `DocumentSource` interface after client tenant, auth, and data-residency requirements are agreed.
 - It does not implement a production enterprise catalogue, semantic platform, Neo4j deployment, or PoolParty integration. It implements local, testable versions of those patterns.
 - It does not yet use LangGraph JS subgraphs. The current multi-agent workflow implements the same separation-of-responsibilities pattern inside the Python core first; LangGraph would be the next orchestration upgrade once persistence and human approvals need to be productionized.
-- It does not implement a full external identity provider, production secret manager, production data residency policy, or turnkey AWS deployment. JWT/JWKS, scopes, approvals, Docker, CI, telemetry hooks, and Terraform are present as the next deployable boundary.
+- It does not implement a full external identity provider, production secret manager, production data residency policy, enterprise S3 bucket policy, or turnkey AWS deployment. JWT/JWKS, scopes, approvals, Docker, CI, telemetry hooks, source connectors, and Terraform are present as the next deployable boundary.
 
 
 ## What I Would Do Differently With More Time
 
 1. **OCR fallback for image-only PDFs.** Render scanned pages, run OCR, and feed the extracted text into the existing chunking/indexing path.
-2. **Larger eval harness before further retrieval or prompt changes.** Expand the current deterministic data-management eval into expected answers, citations, entity resolution, relationship extraction, and provenance accuracy.
+2. **Larger model-backed eval harness before further retrieval or prompt changes.** Expand the current deterministic release gate into expected answers, citations, entity resolution, relationship extraction, provenance accuracy, and LLM-as-judge support-quality checks.
 3. **Hybrid retrieval with BM25 + dense vectors.** Blend keyword retrieval with embeddings for proper nouns, section numbers, and exact financial terms.
 4. **Table-aware chunking for financial and contract tables.** Preserve row/column relationships instead of relying only on flattened PDF text.
 5. **Production-grade claim extraction and inconsistency detection.** Replace the current heuristic claim graph with normalized claims, contradiction scoring, and human-review workflow.
 6. **UI citation panels and document coverage reporting.** Let users expand citations into surrounding source text and see which PDFs contributed chunks or need OCR.
 7. **Export to memo or PowerPoint outline.** Turn verified answers into a consultant-ready Markdown memo or slide-outline artifact.
-8. **Enterprise MCP connectors and governed storage.** Add approved SharePoint, Box, CRM, Postgres/pgvector, and Neo4j services only after auth, tenant permissions, data residency, and audit requirements are agreed.
+8. **Additional enterprise connectors and governed storage.** Add approved SharePoint, Box, CRM, Postgres/pgvector, and Neo4j services only after auth, tenant permissions, data residency, and audit requirements are agreed.
 
 ## Project Layout
 
@@ -587,6 +666,7 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 |       |   |-- mintDevToken.ts
 |       |   |-- mcpGateway.contract.test.ts
 |       |   |-- mcpServer.ts
+|       |   |-- otel.ts
 |       |   |-- ragCoreClient.ts
 |       |   |-- schemas.ts
 |       |   |-- scopes.ts
@@ -598,7 +678,8 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 |-- docs/
 |   `-- consultant_stress_tests.md
 |-- evals/
-|   `-- data_management_cases.json
+|   |-- data_management_cases.json
+|   `-- release_gate_v1.json
 |-- exports/                       # Generated memo / slide-outline artifacts
 |   `-- .gitkeep
 |-- index/                         # Generated local index
@@ -606,7 +687,8 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 |   |-- chunks.json
 |   |-- embeddings.npy
 |   |-- knowledge_graph.json
-|   `-- semantic_index.json
+|   |-- semantic_index.json
+|   `-- source_manifest.json
 |-- semantic/
 |   `-- business_concepts.json     # Canonical concepts and term mappings
 |-- taxonomy/
@@ -616,15 +698,19 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
 |   |-- ask.py                     # CLI question entrypoint
 |   |-- build_index.py             # CLI index builder
 |   |-- evaluate_data_management.py
+|   |-- evaluate_release_gate.py
 |   |-- mcp_server.py              # MCP server exposing data-room tools
 |   |-- smoke_deepseek.py
-|   `-- smoke_embeddings.py
+|   |-- smoke_embeddings.py
+|   `-- sync_document_source.py
 |-- services/
 |   |-- orchestrator/
 |   |   `-- app.py                 # FastAPI wrapper around deterministic / multi-agent routing
 |   `-- rag-core/
 |       `-- app.py                 # FastAPI wrapper around trusted Python functions
 |-- tests/
+|   |-- test_document_sources.py
+|   |-- test_release_gate.py
 |   `-- test_routing.py
 `-- src/
     |-- agent.py                   # Optional DeepSeek tool-calling agent loop
@@ -632,6 +718,7 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
     |-- config.py                  # Single source of truth for settings
     |-- citations.py               # Shared quote/citation matching helpers
     |-- documents.py               # PDF extraction and chunking
+    |-- document_sources.py         # Local-file and S3 source connectors
     |-- diligence_agents.py         # Broad-question supervisor and specialist diligence agents
     |-- embeddings.py              # Local sentence-transformers wrapper
     |-- index_builder.py           # Shared build pipeline
@@ -640,6 +727,7 @@ pnpm dlx @modelcontextprotocol/inspector --cli .\.venv\Scripts\python.exe script
     |-- llm.py                     # DeepSeek calls, structured answer, rerank, verification
     |-- mcp_tools.py               # MCP-facing deterministic tool capabilities
     |-- rag.py                     # End-to-end RAG orchestration
+    |-- release_gate.py             # Versioned deterministic release-gate evaluator
     |-- schemas.py                 # Pydantic data shapes
     |-- semantic.py                # Semantic concepts and evidence extraction
     |-- taxonomy.py                # SKOS/Turtle taxonomy import and lookup

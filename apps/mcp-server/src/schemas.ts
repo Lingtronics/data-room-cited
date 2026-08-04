@@ -22,6 +22,8 @@ export const ToolEnvelopeSchema = z.union([ApiSuccessSchema, ApiErrorSchema]);
 
 export type ApiEnvelope = z.infer<typeof ApiEnvelopeSchema>;
 
+export const NoInputSchema = z.object({});
+
 export const SearchDataRoomInputSchema = z.object({
   query: z.string().min(1),
   top_k: z.number().int().min(1).max(50).optional(),
@@ -44,6 +46,11 @@ export const GetAssetLineageInputSchema = z.object({
 });
 
 export const RebuildIndexInputSchema = z.object({
+  contextualize: z.boolean().nullable().optional(),
+});
+
+export const SyncDocumentSourceInputSchema = z.object({
+  rebuild: z.boolean().optional(),
   contextualize: z.boolean().nullable().optional(),
 });
 

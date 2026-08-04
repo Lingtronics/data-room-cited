@@ -94,6 +94,25 @@ def get_data_quality_status() -> dict[str, Any]:
 
 
 @mcp.tool()
+def list_document_source_documents() -> dict[str, Any]:
+    """List documents visible through the configured local or S3 document source."""
+    return _stdio_safe(mcp_tools.list_document_source_documents)
+
+
+@mcp.tool()
+def sync_configured_document_source(
+    rebuild: bool = False,
+    contextualize: bool | None = None,
+) -> dict[str, Any]:
+    """Sync the configured document source into data/ and optionally rebuild the index."""
+    return _stdio_safe(
+        mcp_tools.sync_configured_document_source,
+        rebuild=rebuild,
+        contextualize=contextualize,
+    )
+
+
+@mcp.tool()
 def list_business_concepts() -> dict[str, Any]:
     """List canonical diligence concepts and their source mention counts."""
     return _stdio_safe(mcp_tools.list_business_concepts)

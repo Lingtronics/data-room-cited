@@ -9,6 +9,12 @@ from typing import Any
 from src import catalogue, knowledge_graph, semantic, taxonomy
 from src.citations import quote_in_source
 from src.config import Settings
+from src.document_sources import (
+    AccessContext,
+    default_access_context,
+    source_from_settings,
+    sync_document_source,
+)
 from src.embeddings import embed_one
 from src.index_builder import build_index
 from src.index_store import load_index, retrieve
@@ -246,6 +252,48 @@ def get_data_quality_status() -> dict[str, Any]:
     return catalogue.get_data_quality_status(settings=Settings.from_env())
 
 
+def list_document_source_documents(access_context: AccessContext | None = None) -> dict[str, Any]:
+    settings = Settings.from_env()
+    source = source_from_settings(settings)
+    context = access_context or default_access_context(settings)
+    documents = source.list_documents(context)
+    return {
+        "source_system": source.source_system,
+        "workspace_id": context.workspace_id,
+        "document_count": len(documents),
+        "documents": [document.model_dump(mode="json") for document in documents],
+    }
+
+
+def sync_configured_document_source(
+    rebuild: bool = False,
+    contextualize: bool | None = None,
+    access_context: AccessContext | None = None,
+) -> dict[str, Any]:
+    settings = Settings.from_env()
+    source = source_from_settings(settings)
+    context = access_context or default_access_context(settings)
+    with span("connector.sync", {"source_system": source.source_system, "rebuild": rebuild}):
+        result = sync_document_source(
+            source,
+            destination_dir=settings.data_dir,
+            manifest_path=settings.source_manifest_path,
+            context=context,
+        )
+        output: dict[str, Any] = {"sync": result.model_dump(mode="json")}
+        if rebuild:
+            build_result = build_index(settings, contextualize=contextualize)
+            output["index"] = {
+                "chunk_count": build_result.chunk_count,
+                "embedding_shape": build_result.embedding_shape,
+                "catalogue_asset_count": build_result.catalogue_asset_count,
+                "semantic_mention_count": build_result.semantic_mention_count,
+                "graph_node_count": build_result.graph_node_count,
+                "graph_edge_count": build_result.graph_edge_count,
+            }
+    return output
+
+
 def list_business_concepts() -> dict[str, Any]:
     return semantic.list_business_concepts(settings=Settings.from_env())
 
@@ -317,26 +365,30 @@ def validate_entity_classification(entity_or_term: str, expected_concept_id: str
 
 def enterprise_connector_plan() -> dict[str, Any]:
     return {
-        "status": "planned_not_implemented",
+        "status": "s3_connector_implemented_for_prototype",
         "reason": (
-            "Enterprise connectors need client-approved auth, tenant configuration, "
-            "data residency, and audit requirements before they should access real documents."
+            "The prototype includes a DocumentSource interface with LocalFileDocumentSource "
+            "and S3DocumentSource. Production rollout still needs client-approved auth, "
+            "tenant configuration, data residency, and audit requirements."
         ),
-        "planned_connectors": [
+        "implemented_connectors": [
+            {
+                "name": "LocalFileDocumentSource",
+                "purpose": "Discover and sync local PDFs with content hashes, ACL sidecars, deleted-document handling, and source manifest lineage.",
+            },
+            {
+                "name": "S3DocumentSource",
+                "purpose": "Discover and download PDFs from an S3 bucket/prefix with object hash/version, tags, metadata, ACL metadata, and incremental cursors.",
+            },
+        ],
+        "future_connectors": [
             {
                 "name": "SharePoint",
-                "purpose": "Pull approved diligence documents from client or firm workspaces.",
-            },
-            {
-                "name": "Box",
-                "purpose": "Sync data-room files from managed deal folders.",
-            },
-            {
-                "name": "CRM",
-                "purpose": "Attach verified diligence outputs to client/project records.",
+                "purpose": "Implement through the same DocumentSource interface after tenant auth and data residency rules are approved.",
             },
         ],
         "data_management_extension_points": [
+            "source manifest",
             "metadata catalogue",
             "semantic layer",
             "knowledge graph",

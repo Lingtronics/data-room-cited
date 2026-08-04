@@ -73,6 +73,8 @@ contractDescribe("TypeScript MCP gateway contracts", () => {
         "verify_citation",
         "find_supporting_evidence",
         "get_asset_lineage",
+        "list_document_source_documents",
+        "sync_document_source",
         "rebuild_index",
         "export_powerpoint_outline",
       ]),

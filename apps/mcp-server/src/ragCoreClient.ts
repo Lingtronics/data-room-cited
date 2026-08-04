@@ -10,8 +10,10 @@ import {
   GetAssetLineageInputSchema,
   RebuildIndexInputSchema,
   SearchDataRoomInputSchema,
+  SyncDocumentSourceInputSchema,
   VerifyCitationInputSchema,
 } from "./schemas.js";
+import type { AccessContext } from "./auth.js";
 import { injectTraceHeaders, withSpan } from "./telemetry.js";
 
 type SearchDataRoomInput = Infer<typeof SearchDataRoomInputSchema>;
@@ -19,6 +21,7 @@ type VerifyCitationInput = Infer<typeof VerifyCitationInputSchema>;
 type FindSupportingEvidenceInput = Infer<typeof FindSupportingEvidenceInputSchema>;
 type GetAssetLineageInput = Infer<typeof GetAssetLineageInputSchema>;
 type RebuildIndexInput = Infer<typeof RebuildIndexInputSchema>;
+type SyncDocumentSourceInput = Infer<typeof SyncDocumentSourceInputSchema>;
 type ExportPowerPointOutlineInput = Infer<typeof ExportPowerPointOutlineInputSchema>;
 
 export class RagCoreClient {
@@ -27,6 +30,7 @@ export class RagCoreClient {
   constructor(
     baseUrl: string,
     private readonly correlationId: string = randomUUID(),
+    private readonly accessContext?: AccessContext,
   ) {
     this.baseUrl = new URL(baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
   }
@@ -72,6 +76,17 @@ export class RagCoreClient {
     return this.get(`graph/evidence?${params}`);
   }
 
+  listDocumentSourceDocuments(): Promise<ApiEnvelope> {
+    return this.get("connectors/documents");
+  }
+
+  syncDocumentSource(input: SyncDocumentSourceInput): Promise<ApiEnvelope> {
+    return this.post("connectors/sync", {
+      rebuild: input.rebuild ?? false,
+      contextualize: input.contextualize ?? null,
+    });
+  }
+
   rebuildIndex(input: RebuildIndexInput): Promise<ApiEnvelope> {
     return this.post("index/rebuild", {
       contextualize: input.contextualize ?? null,
@@ -108,6 +123,7 @@ export class RagCoreClient {
           accept: "application/json",
           "content-type": "application/json",
           "x-correlation-id": this.correlationId,
+          ...this.accessHeaders(),
         });
         const init: RequestInit = {
           method,
@@ -134,5 +150,18 @@ export class RagCoreClient {
         };
       },
     );
+  }
+
+  private accessHeaders(): Record<string, string> {
+    if (!this.accessContext) {
+      return {};
+    }
+    return {
+      "x-workspace-id": this.accessContext.workspaceId,
+      "x-user-id": this.accessContext.userId,
+      "x-user-role": this.accessContext.role,
+      "x-auth-scopes": this.accessContext.scopes.join(","),
+      "x-allowed-document-ids": this.accessContext.allowedDocumentIds.join(","),
+    };
   }
 }
