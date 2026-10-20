@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "workspace_id": "voice-synthetic-v1",
+  "synthetic": true,
+  "retrieval_mode": "lexical",
+  "documents": [
+    "synthetic_contracts_2025.txt",
+    "synthetic_risk_review_2025.txt",
+    "synthetic_notes_2024.txt"
+  ],
+  "files": {
+    "data": {
+      "synthetic_contracts_2025.txt": {
+        "bytes": 221,
+        "sha256": "b9666e65729046f5ef988f0bff3c3ed8a3a54ada073df85b010265b9dd058d76"
+      },
+      "synthetic_notes_2024.txt": {
+        "bytes": 276,
+        "sha256": "716d37219bac0e88e791e0d41b617635147cc2fde21e1a4f8701f2a6c19a696d"
+      },
+      "synthetic_risk_review_2025.txt": {
+        "bytes": 202,
+        "sha256": "2a5ac4a50617f442900ee0effa9c338417729210f83b9e931b94bb1cb165df14"
+      }
+    },
+    "index": {
+      "chunks.json": {
+        "bytes": 1392,
+        "sha256": "13141d9718e8cc5cf6ebafdde77e284a3f70bbc3e87cd352fd86673ba8fa9410"
+      },
+      "embeddings.npy": {
+        "bytes": 4736,
+        "sha256": "c94ad0a83d2b87d10806ea2af8a4002e99205425e217a5e6d36de73d2b2e66b8"
+      }
+    }
+  }
+}

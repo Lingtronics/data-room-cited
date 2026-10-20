@@ -1,3 +1,6 @@
+import { assertLoopbackUrl, VoicePolicy, VOICE_SCOPES } from "./voicePolicy.js";
+import { externalVoiceIngress, VoiceIngress } from "./voiceIngress.js";
+
 export type GatewayConfig = {
   port: number;
   ragCoreBaseUrl: string;
@@ -10,6 +13,9 @@ export type GatewayConfig = {
   devJwtSecret: string;
   defaultWorkspaceId: string;
   approvalRequired: boolean;
+  host?: string;
+  voicePolicy?: VoicePolicy;
+  voiceIngress?: VoiceIngress;
 };
 
 export const ALL_SCOPES = [
@@ -23,6 +29,7 @@ export const ALL_SCOPES = [
 export type Scope = (typeof ALL_SCOPES)[number];
 
 export function loadGatewayConfig(env: NodeJS.ProcessEnv = process.env): GatewayConfig {
+  const externalIngress = externalVoiceIngress(env);
   const port = integerFromEnv(env.MCP_GATEWAY_PORT, 8787);
   const config: GatewayConfig = {
     port,
@@ -42,6 +49,29 @@ export function loadGatewayConfig(env: NodeJS.ProcessEnv = process.env): Gateway
   const jwksUrl = optionalString(env.MCP_JWKS_URL);
   if (jwksUrl) {
     config.jwksUrl = jwksUrl;
+  }
+  if (env.VOICE_FEATURE_ENABLED !== undefined && !["true", "false"].includes(env.VOICE_FEATURE_ENABLED)) {
+    throw new Error("VOICE_FEATURE_ENABLED must be true or false.");
+  }
+  if (env.VOICE_FEATURE_ENABLED === "true") {
+    if (env.VOICE_READ_ONLY_DEMO !== "true" || env.MCP_AUTH_REQUIRED !== "true" ||
+        env.MCP_ALLOW_DEV_TOKENS !== "false" || !config.authIssuer || !env.MCP_AUTH_AUDIENCE?.trim()) {
+      throw new Error("Voice mode requires read-only demo, explicit auth, issuer/audience and disabled dev tokens.");
+    }
+    if (env.MCP_GATEWAY_HOST && env.MCP_GATEWAY_HOST !== "127.0.0.1") {
+      throw new Error("Voice MCP_GATEWAY_HOST must be 127.0.0.1.");
+    }
+    if ((!jwksUrl && (!env.MCP_DEV_JWT_SECRET || Buffer.byteLength(env.MCP_DEV_JWT_SECRET) < 32)) ||
+        (jwksUrl && new URL(jwksUrl).protocol !== "https:")) {
+      throw new Error("Voice mode requires a dedicated 32-byte-or-longer JWT secret or HTTPS JWKS.");
+    }
+    if (config.defaultScopes.some(scope => !VOICE_SCOPES.includes(scope as typeof VOICE_SCOPES[number]))) {
+      throw new Error("Voice mode permits read scopes only.");
+    }
+    assertLoopbackUrl(config.ragCoreBaseUrl);
+    config.host = "127.0.0.1";
+    config.voicePolicy = new VoicePolicy(env.VOICE_FIXTURE_DATA_DIR ?? "", env.VOICE_FIXTURE_INDEX_DIR ?? "");
+    config.voiceIngress = new VoiceIngress(externalIngress);
   }
   return config;
 }

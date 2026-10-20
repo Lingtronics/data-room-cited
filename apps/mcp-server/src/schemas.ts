@@ -35,6 +35,16 @@ export const VerifyCitationInputSchema = z.object({
   quote: z.string().min(1),
 });
 
+export const VoiceSearchInputSchema = z.strictObject({
+  query: z.string().trim().min(1).max(2_000),
+  top_k: z.number().int().min(1).max(5).default(5),
+  semantic: z.literal(false).default(false),
+});
+export const VoiceVerifyInputSchema = z.strictObject({
+  chunk_id: z.string().trim().min(1).max(200),
+  quote: z.string().trim().min(1).max(5_000),
+});
+
 export const FindSupportingEvidenceInputSchema = z.object({
   query: z.string().min(1),
   limit: z.number().int().min(1).max(50).optional(),

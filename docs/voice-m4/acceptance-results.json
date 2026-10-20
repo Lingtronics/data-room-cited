@@ -1,0 +1,30 @@
+{
+  "milestone": "M4",
+  "status": "approved_awaiting_account_access_and_exact_targets",
+  "bounded_trial_approved_on": "2026-10-20",
+  "setup": {
+    "ngrok_version": "3.39.11",
+    "ngrok_signature_status": "Valid",
+    "ngrok_publisher": "ngrok, Inc.",
+    "tunnel_started": false,
+    "exposure_window_started": false,
+    "provider_settings_changed": false,
+    "blockers": ["Provider sign-in or privately provisioned account credentials required", "Exact sandbox workspace name/ID required", "Reserved ngrok HTTPS domain required"]
+  },
+  "live_gate_satisfied": false,
+  "workspace_id": null,
+  "agent_id": null,
+  "reserved_https_origin": null,
+  "live_conversations": 0,
+  "provider_usage_cost": null,
+  "audio_latency_p50_ms": null,
+  "audio_latency_p95_ms": null,
+  "trials": [
+    {"scenario":"grounded_question","status":"not_run","verified_visible_citation":null,"read_tool_observed":null,"observer_notes":null},
+    {"scenario":"insufficient_evidence","status":"not_run","abstention_observed":null,"no_fabricated_citation":null,"observer_notes":null},
+    {"scenario":"denied_or_unavailable_tool","status":"not_run","failure_disclosed":null,"index_unchanged":null,"observer_notes":null},
+    {"scenario":"interruption_scope_correction","status":"not_run","filter_limit_disclosed":null,"stale_evidence_cleared":null,"observer_notes":null},
+    {"scenario":"end_cleanup","status":"not_run","microphone_stopped":null,"transcript_and_evidence_cleared":null,"observer_notes":null}
+  ],
+  "recording_policy": "No raw audio, transcripts, signed URLs, tokens or excerpts in this result log. Record counts, outcomes, durations and concise redacted observations only."
+}

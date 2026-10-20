@@ -1,0 +1,70 @@
+{
+  "artifact_kind": "review_plan_not_an_api_request",
+  "status": "bounded_trial_approved_awaiting_access_and_targets",
+  "approval": {
+    "date": "2026-10-20",
+    "user_response": "Approve the bounded trial",
+    "scope_file": "../voice-m4-approval.md",
+    "deployment_approved": false
+  },
+  "target": {
+    "workspace_kind": "existing development or sandbox only",
+    "workspace_id": null,
+    "agent_name": "Data Room Cited – M4 Voice Demo",
+    "agent_id": null,
+    "operation": "create dedicated agent; clone only an explicitly selected sandbox source",
+    "production_changes": false
+  },
+  "agent": {
+    "language": "en",
+    "authentication": "signed URLs required; no public unauthenticated sessions",
+    "enable_auth": true,
+    "allowlist": [],
+    "max_duration_seconds": 300,
+    "first_message": "This is a synthetic, read-only research demo. Ask about the fictional contracts and I will check the sources.",
+    "prompt_file": "agent-prompt.txt",
+    "client_events": ["audio", "interruption", "user_transcript", "agent_response", "agent_response_correction"],
+    "client_tool": {
+      "name": "displayEvidence",
+      "description": "Submit exact retrieved chunk IDs and source excerpts for independent local verification. Wait for the result before claiming verification.",
+      "parameters_file": "display-evidence.schema.json",
+      "expects_response": true,
+      "response_timeout_secs": 30
+    },
+    "privacy_proposal_requires_approval": {
+      "record_voice": false,
+      "retention_days": 1,
+      "apply_to_existing_conversations": false,
+      "change_workspace_ZRM_or_HIPAA": false
+    },
+    "voice_and_model": "Select from the existing sandbox's approved options; record actual IDs before applying.",
+    "other_tools_knowledge_bases_webhooks_workflows": "none; do not inherit these when cloning"
+  },
+  "mcp": {
+    "transport": "Streamable HTTP",
+    "endpoint": null,
+    "authorization": "Bearer plus a short-lived JWT stored as an ElevenLabs secret; never commit it",
+    "integration_identity": "synthetic read-only service, not an end user",
+    "approval_mode": "fine-grained",
+    "automatic_tools": ["search_data_room", "verify_citation"],
+    "other_tools": "disabled",
+    "enable_workspace_mcp": "only after explicit approval; stop if incompatible workspace privacy controls apply"
+  },
+  "tunnel": {
+    "provider": "ngrok",
+    "reserved_https_origin": null,
+    "upstream": "http://127.0.0.1:8787",
+    "allowed_path": "/mcp",
+    "initial_window_minutes": 20,
+    "maximum_configurable_window_minutes": 30,
+    "inspect": false,
+    "rewrite_host": false,
+    "install_or_start_approved": true,
+    "installed_cli_version": "3.39.11",
+    "executable_path": ".voice-demo/tools/ngrok.exe",
+    "signature_verified": true,
+    "tunnel_started": false
+  },
+  "live_trial_proposal": {"maximum_conversations": 3, "maximum_minutes_each": 5, "automatic_retries": false, "actual_cost": null},
+  "secrets_in_this_file": false
+}

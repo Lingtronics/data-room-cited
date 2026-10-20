@@ -61,6 +61,18 @@ jobs:
         run: pnpm typecheck
       - name: MCP contract tests
         run: pnpm --filter @data-room-cited/mcp-server test
+      - name: Voice API/UI build and credential-free tests
+        run: pnpm voice:test
+      - name: Voice API/UI lint and typecheck
+        run: |
+          pnpm --filter @data-room-cited/voice-api lint
+          pnpm --filter @data-room-cited/voice-api typecheck
+          pnpm --filter @data-room-cited/voice-web lint
+          pnpm --filter @data-room-cited/voice-web typecheck
+      - name: Install Chromium for mocked voice browser tests
+        run: pnpm --filter @data-room-cited/voice-web exec playwright install --with-deps chromium
+      - name: Voice browser acceptance tests (mocked services and microphone)
+        run: pnpm voice:test:e2e
       - name: Node dependency scan
         continue-on-error: true
         run: pnpm audit --audit-level high

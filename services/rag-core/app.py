@@ -321,3 +321,10 @@ def _split_header(value: str | None) -> list[str]:
     if not value:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+# Opt-in boundary runs before ordinary routes/telemetry and leaves them unchanged
+# when voice is disabled. It reuses mcp_tools rather than adding retrieval logic.
+from src.voice_core import install_voice_profile
+
+install_voice_profile(app)
