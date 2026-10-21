@@ -51,9 +51,14 @@ extra-field rejection remain enforced by the existing UI and verification API.
 The checked-in strict `display-evidence.schema.json` contract was not weakened.
 The client event list explicitly includes `client_tool_call`.
 
-No application source changed. The previously reported credential-free suites
-and CI results remain the last application test runs; they are not claimed as
-rerun for this provider/documentation step.
+No application source changed during provider setup. Subsequent CI at head
+`58443b2` passed all six push/PR jobs: Python **44**, MCP **155**, voice API **139**,
+voice UI **92**, mocked browser **8**, and the synthetic release gate **16/16**.
+All four containers built. Python audit found no known vulnerabilities; Node's
+passing high-severity gate reported two moderate Vitest advisories. The follow-up
+patch and its actual local verification are recorded in
+[the CI repair report](voice-ci-repair-report.md); current-head CI is tracked in
+the PR description. These mocked tests do not satisfy live acceptance.
 
 ## Remaining sequence
 

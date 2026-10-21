@@ -1,5 +1,35 @@
 # PR #1 CI follow-up — 21 October 2026
 
+## Subsequent Vitest audit repair
+
+The later provider-setup documentation head `58443b2` passed all six jobs across
+[push CI](https://github.com/Lingtronics/data-room-cited/actions/runs/39680347611)
+and [PR CI](https://github.com/Lingtronics/data-room-cited/actions/runs/39680353637).
+Its detailed Node audit nevertheless reported two moderate advisories below the
+existing `--audit-level high` failure threshold:
+[manual mock injection](https://github.com/advisories/GHSA-qxg6-89mg-rqv8) and
+[Windows redirect traversal](https://github.com/advisories/GHSA-xp26-3454-mjgp).
+The earlier all-severity audit below records its result at that earlier time.
+
+Updated Vitest from 4.1.11 to 4.1.12 in `apps/mcp-server/package.json`,
+`apps/voice-api/package.json`, `apps/voice-web/package.json` and `pnpm-lock.yaml`.
+The patch was published on 15 October and already exceeded the 24-hour minimum
+age. No age exception, audit threshold change or test exclusion was added. Only
+Vitest and its seven matching internal packages changed in the lockfile.
+
+Actual local checks after this patch: frozen-lockfile installation passed;
+all-severity `pnpm audit --json` returned zero advisories and exit 0; MCP **155**,
+voice API **139** and voice UI **92** tests passed; the production build passed
+with the existing lazy SDK size warning. Initial sandboxed test attempts could
+not load suites because Windows denied a temporary-file rename (`EPERM`). The
+same credential-free suites passed when rerun outside that filesystem sandbox;
+no test or application security control was changed. Current-head CI results
+are recorded in the PR description after the fresh runs finish.
+
+The separately approved inactive sandbox-agent preparation is recorded in
+[the provider setup report](voice-m4-provider-setup-report.md). M4 still awaits
+the ngrok Full Capture check and witnessed live acceptance; no tunnel has opened.
+
 ## Result and scope
 
 The original push and pull-request workflows were rerun at 17:35 UTC, after the
