@@ -1,20 +1,23 @@
 # M4 external setup: review and approval package
 
-Status: **bounded trial approved on 20 October 2026; account access and exact
-targets pending**. The user approved the scope below with “Approve the bounded
-trial”. Official ngrok 3.39.11 is installed locally; no tunnel has started and no
-ElevenLabs workspace/agent settings have changed. The M4 live gate is not satisfied
-until the witnessed results below are recorded. Approval is not evidence of a
-configured account or successful live trial.
+Status: **bounded trial approved on 20 October 2026; private sandbox agent
+created and verified on 21 October; tunnel and spoken trials pending**. The
+workspace name/ID mapping and exact domain have been confirmed by the user.
+Workspace MCP is enabled, and the dedicated agent is archived/inactive with no
+MCP server attached. No tunnel has started. See the [provider setup report](voice-m4-provider-setup-report.md)
+for actual changes and readbacks. M4 remains incomplete until witnessed results
+are recorded; configuration success is not live acceptance.
 
 ## Requested target and scope
 
 Use an existing ElevenLabs development/sandbox workspace and a dedicated agent
-named **Data Room Cited – M4 Voice Demo**. No agent ID or specific workspace has
-been confirmed. Create this agent only after approval; clone only an explicitly
-identified sandbox source after inspecting its tools, workflows and knowledge bases.
+named **Data Room Cited – M4 Voice Demo**. The approved agent has now been created
+from scratch in the confirmed sandbox; nonsecret IDs are recorded in the agent
+plan and live acceptance record. Clone only an explicitly identified sandbox
+source after inspecting its tools, workflows and knowledge bases.
 Never change a production agent. The user selected **ngrok with a reserved HTTPS
-development domain**; the exact reserved domain is still required.
+development domain**: `https://gerbil-user-hug.ngrok-free.dev`. Ownership and
+transport behavior still require verification when the route is established.
 
 The review files are:
 
@@ -44,11 +47,11 @@ approved sandbox voice/model IDs. Supply provider/ngrok secrets privately throug
 the relevant local environment or provider secret store; never paste them into
 chat, command arguments, screenshots or these files. ELEVENLABS_API_KEY remains in
 the local API process. The integration receives only a short-lived synthetic
-reader JWT, not the signing key. No credentials were present in the inspected
-process environment; no provider account read/write API was called. The available
-browser reached sign-in pages for both providers, so authenticated account access
-is still required. No further approval is needed for the unchanged scope above;
-the remaining inputs are account access and the exact sandbox/domain targets.
+reader JWT, not the signing key. Initial preparation had no provider credentials or authenticated account access.
+On 21 October, the user privately provisioned credentials and enabled the required
+key scopes. Read-only workspace checks and the approved inactive-agent setup
+subsequently succeeded. The remaining account check is ngrok Full Capture status.
+No further approval is needed for the unchanged bounded scope above.
 
 ## Installation verified on 20 October 2026
 

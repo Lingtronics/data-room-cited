@@ -1,5 +1,11 @@
 # M4 implementation and trial readiness report
 
+**Latest update — 21 October 2026:** the sandbox identity is confirmed, workspace
+MCP is enabled, and the dedicated private agent/client tool were created and
+read back successfully. The agent remains archived, with no MCP server attached.
+No tunnel or spoken trial has run. See the [provider setup report](voice-m4-provider-setup-report.md).
+The preparation narrative below records the earlier 20 October state.
+
 Date: 20 October 2026. **M4 is not complete.** Local code, review templates and
 credential-free integration tests are ready. The required real spoken Q&A,
 abstention and denied/unavailable-tool trials have not run. The user approved the

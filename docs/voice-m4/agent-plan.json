@@ -1,6 +1,6 @@
 {
   "artifact_kind": "review_plan_not_an_api_request",
-  "status": "bounded_trial_approved_awaiting_access_and_targets",
+  "status": "sandbox_agent_created_inactive_awaiting_tunnel_privacy_check",
   "approval": {
     "date": "2026-10-20",
     "user_response": "Approve the bounded trial",
@@ -9,11 +9,13 @@
   },
   "target": {
     "workspace_kind": "existing development or sandbox only",
-    "workspace_id": null,
+    "workspace_id": "7a135cd6842d466cab2259e17ae6ec79",
     "agent_name": "Data Room Cited – M4 Voice Demo",
-    "agent_id": null,
+    "agent_id": "agent_5901m5g65jmsec1ays5a4vcqhwsv",
     "operation": "create dedicated agent; clone only an explicitly selected sandbox source",
-    "production_changes": false
+    "production_changes": false,
+    "workspace_name": "Workspace 1b0e22dbdebe4495a12b23985678c9dc",
+    "workspace_identity_confirmed_by_user": true
   },
   "agent": {
     "language": "en",
@@ -23,7 +25,14 @@
     "max_duration_seconds": 300,
     "first_message": "This is a synthetic, read-only research demo. Ask about the fictional contracts and I will check the sources.",
     "prompt_file": "agent-prompt.txt",
-    "client_events": ["audio", "interruption", "user_transcript", "agent_response", "agent_response_correction"],
+    "client_events": [
+      "audio",
+      "interruption",
+      "user_transcript",
+      "agent_response",
+      "agent_response_correction",
+      "client_tool_call"
+    ],
     "client_tool": {
       "name": "displayEvidence",
       "description": "Submit exact retrieved chunk IDs and source excerpts for independent local verification. Wait for the result before claiming verification.",
@@ -35,24 +44,34 @@
       "record_voice": false,
       "retention_days": 1,
       "apply_to_existing_conversations": false,
-      "change_workspace_ZRM_or_HIPAA": false
+      "change_workspace_ZRM_or_HIPAA": false,
+      "delete_audio": true,
+      "delete_transcript_and_pii": true
     },
-    "voice_and_model": "Select from the existing sandbox's approved options; record actual IDs before applying.",
+    "voice_and_model": {
+      "selection": "Current documented provider defaults, confirmed by agent readback",
+      "voice_id": "cjVigY5qzO86Huf0OWal",
+      "tts_model_id": "eleven_v4_turbo",
+      "llm": "gemini-2.5-flash"
+    },
     "other_tools_knowledge_bases_webhooks_workflows": "none; do not inherit these when cloning"
   },
   "mcp": {
     "transport": "Streamable HTTP",
-    "endpoint": null,
+    "endpoint": "https://gerbil-user-hug.ngrok-free.dev/mcp",
     "authorization": "Bearer plus a short-lived JWT stored as an ElevenLabs secret; never commit it",
     "integration_identity": "synthetic read-only service, not an end user",
     "approval_mode": "fine-grained",
-    "automatic_tools": ["search_data_room", "verify_citation"],
+    "automatic_tools": [
+      "search_data_room",
+      "verify_citation"
+    ],
     "other_tools": "disabled",
     "enable_workspace_mcp": "only after explicit approval; stop if incompatible workspace privacy controls apply"
   },
   "tunnel": {
     "provider": "ngrok",
-    "reserved_https_origin": null,
+    "reserved_https_origin": "https://gerbil-user-hug.ngrok-free.dev",
     "upstream": "http://127.0.0.1:8787",
     "allowed_path": "/mcp",
     "initial_window_minutes": 20,
@@ -65,6 +84,23 @@
     "signature_verified": true,
     "tunnel_started": false
   },
-  "live_trial_proposal": {"maximum_conversations": 3, "maximum_minutes_each": 5, "automatic_retries": false, "actual_cost": null},
-  "secrets_in_this_file": false
+  "live_trial_proposal": {
+    "maximum_conversations": 3,
+    "maximum_minutes_each": 5,
+    "automatic_retries": false,
+    "actual_cost": null
+  },
+  "secrets_in_this_file": false,
+  "provider_setup": {
+    "date": "2026-10-21",
+    "workspace_mcp_enabled": true,
+    "other_workspace_settings_unchanged": true,
+    "client_tool_id": "tool_0601m5g65j7af53t9cck8m16xvcb",
+    "client_tool_readback_validated": true,
+    "agent_readback_validated": true,
+    "agent_archived": true,
+    "attached_mcp_servers": 0,
+    "provider_full_capture_check_pending": true,
+    "live_conversations": 0
+  }
 }
