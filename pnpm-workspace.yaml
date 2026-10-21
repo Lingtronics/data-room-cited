@@ -4,3 +4,5 @@ packages:
 allowBuilds:
   esbuild: true
   protobufjs: false
+# Keep the 24-hour supply-chain quarantine explicit across pnpm versions.
+minimumReleaseAge: 1440

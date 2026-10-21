@@ -7,6 +7,13 @@
     "typecheck": "pnpm --filter @data-room-cited/mcp-server typecheck",
     "mcp:dev": "pnpm --filter @data-room-cited/mcp-server dev",
     "mcp:build": "pnpm --filter @data-room-cited/mcp-server build",
-    "mcp:test": "pnpm --filter @data-room-cited/mcp-server test"
+    "mcp:test": "pnpm --filter @data-room-cited/mcp-server test",
+    "voice:build": "pnpm --filter @data-room-cited/voice-web... build",
+    "voice:dev": "pnpm --filter @data-room-cited/voice-api... build && pnpm --filter @data-room-cited/voice-api dev",
+    "voice:test": "pnpm voice:build && pnpm --filter @data-room-cited/voice-api --filter @data-room-cited/voice-web test",
+    "voice:typecheck": "pnpm voice:build && pnpm --filter @data-room-cited/voice-api --filter @data-room-cited/voice-web typecheck",
+    "voice:web:dev": "pnpm --filter @data-room-cited/voice-api... build && pnpm --filter @data-room-cited/voice-web dev",
+    "voice:mock": "pnpm --filter @data-room-cited/voice-api... build && pnpm --filter @data-room-cited/voice-web dev:mock",
+    "voice:test:e2e": "pnpm --filter @data-room-cited/voice-api... build && pnpm --filter @data-room-cited/voice-web test:e2e"
   }
 }

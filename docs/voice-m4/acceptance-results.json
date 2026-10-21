@@ -1,0 +1,72 @@
+{
+  "milestone": "M4",
+  "status": "sandbox_agent_created_inactive_awaiting_tunnel_privacy_check",
+  "bounded_trial_approved_on": "2026-10-20",
+  "setup": {
+    "ngrok_version": "3.39.11",
+    "ngrok_signature_status": "Valid",
+    "ngrok_publisher": "ngrok, Inc.",
+    "tunnel_started": false,
+    "exposure_window_started": false,
+    "provider_settings_changed": true,
+    "blockers": [
+      "Confirm ngrok account Traffic Inspector Full Capture is disabled before opening the route",
+      "Create and verify the temporary MCP integration, then witness the human-spoken acceptance trials"
+    ],
+    "workspace_mcp_enabled": true,
+    "other_workspace_settings_unchanged": true,
+    "agent_created": true,
+    "agent_archived": true,
+    "agent_privacy_readback_verified": true,
+    "client_tool_readback_verified": true,
+    "mcp_server_attached": false,
+    "last_verified_at": "2026-10-21T21:36:31.971149+00:00"
+  },
+  "live_gate_satisfied": false,
+  "workspace_id": "7a135cd6842d466cab2259e17ae6ec79",
+  "agent_id": "agent_5901m5g65jmsec1ays5a4vcqhwsv",
+  "reserved_https_origin": "https://gerbil-user-hug.ngrok-free.dev",
+  "live_conversations": 0,
+  "provider_usage_cost": null,
+  "audio_latency_p50_ms": null,
+  "audio_latency_p95_ms": null,
+  "trials": [
+    {
+      "scenario": "grounded_question",
+      "status": "not_run",
+      "verified_visible_citation": null,
+      "read_tool_observed": null,
+      "observer_notes": null
+    },
+    {
+      "scenario": "insufficient_evidence",
+      "status": "not_run",
+      "abstention_observed": null,
+      "no_fabricated_citation": null,
+      "observer_notes": null
+    },
+    {
+      "scenario": "denied_or_unavailable_tool",
+      "status": "not_run",
+      "failure_disclosed": null,
+      "index_unchanged": null,
+      "observer_notes": null
+    },
+    {
+      "scenario": "interruption_scope_correction",
+      "status": "not_run",
+      "filter_limit_disclosed": null,
+      "stale_evidence_cleared": null,
+      "observer_notes": null
+    },
+    {
+      "scenario": "end_cleanup",
+      "status": "not_run",
+      "microphone_stopped": null,
+      "transcript_and_evidence_cleared": null,
+      "observer_notes": null
+    }
+  ],
+  "recording_policy": "No raw audio, transcripts, signed URLs, tokens or excerpts in this result log. Record counts, outcomes, durations and concise redacted observations only.",
+  "workspace_name": "Workspace 1b0e22dbdebe4495a12b23985678c9dc"
+}

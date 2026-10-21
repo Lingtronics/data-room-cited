@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 
@@ -19,6 +20,18 @@ def save_index(index_dir: Path, chunks: list[Chunk], embeddings: np.ndarray) -> 
 
 
 def load_index(index_dir: Path) -> tuple[list[Chunk], np.ndarray]:
+    from src import voice_fixture
+
+    if voice_fixture.enabled():
+        import os
+
+        if index_dir.resolve() != Path(os.environ["VOICE_FIXTURE_INDEX_DIR"]).resolve():
+            raise voice_fixture.VoiceFixtureError("Voice mode cannot load another index.")
+        snapshot = voice_fixture.configured_snapshot()
+        chunks = [_chunk_from_json(item) for item in json.loads(snapshot["index/chunks.json"])]
+        embeddings = np.load(io.BytesIO(snapshot["index/embeddings.npy"]), allow_pickle=False)
+        _validate_index_lengths(chunks, embeddings)
+        return chunks, embeddings
     chunks_path = index_dir / CHUNKS_PATH.name
     embeddings_path = index_dir / EMBEDDINGS_PATH.name
     if not chunks_path.exists() or not embeddings_path.exists():

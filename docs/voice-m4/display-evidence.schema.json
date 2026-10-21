@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "displayEvidence parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array", "minItems": 1, "maxItems": 5,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["chunk_id", "quote"],
+        "properties": {
+          "chunk_id": {"type": "string", "minLength": 1, "maxLength": 200, "description": "Exact chunk_id from read-only MCP retrieval."},
+          "quote": {"type": "string", "minLength": 1, "maxLength": 5000, "description": "Exact source excerpt; never paraphrase or invent."}
+        }
+      }
+    }
+  }
+}

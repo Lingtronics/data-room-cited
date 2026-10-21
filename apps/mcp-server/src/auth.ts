@@ -122,7 +122,20 @@ async function jwtAccessContext(token: string, config: GatewayConfig): Promise<A
   if (config.authIssuer) {
     verifyOptions.issuer = config.authIssuer;
   }
+  if (config.voicePolicy) {
+    verifyOptions.requiredClaims = ["exp", "iss", "aud", "sub", "workspace_id", "document_ids", "scope"];
+    verifyOptions.algorithms = config.jwksUrl ? ["RS256"] : ["HS256"];
+  }
   const { payload } = await jwtVerify(token, key, verifyOptions);
+  if (config.voicePolicy && (
+    typeof payload.scope !== "string" ||
+    payload.scope.split(/[ ,]+/).filter(Boolean).some(scope => !["documents:read", "citations:verify"].includes(scope)) ||
+    !Array.isArray(payload.document_ids) || payload.document_ids.some(doc => typeof doc !== "string") ||
+    payload.role !== "reader" || payload.approvals !== undefined ||
+    (payload.approval_grants !== undefined && (!Array.isArray(payload.approval_grants) || payload.approval_grants.length))
+  )) {
+    throw new AuthError("Voice JWT claims must be strictly read-only.", 403, "voice_access_denied");
+  }
   const workspaceId = stringClaim(payload, "workspace_id") ?? stringClaim(payload, "tenant_id");
   if (!workspaceId) {
     throw new AuthError("JWT is valid but missing workspace_id/tenant_id claim.", 403, "missing_workspace");
@@ -140,6 +153,10 @@ async function jwtAccessContext(token: string, config: GatewayConfig): Promise<A
   };
   if (payload.exp !== undefined) {
     accessContext.expiresAt = payload.exp;
+  }
+  if (config.voicePolicy) {
+    try { config.voicePolicy.assertAccess(accessContext); }
+    catch { throw new AuthError("Voice JWT is outside the synthetic demo boundary.", 403, "voice_access_denied"); }
   }
   return accessContext;
 }

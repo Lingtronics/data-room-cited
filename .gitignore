@@ -3,10 +3,13 @@ node_modules/
 .pnpm-store/
 apps/*/node_modules/
 apps/*/dist/
+apps/voice-web/test-results/
+apps/voice-web/playwright-report/
 coverage/
 __pycache__/
 *.pyc
 .pytest_cache/
+.voice-demo/
 .streamlit/secrets.toml
 .env
 data/*.pdf

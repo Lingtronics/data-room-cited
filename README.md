@@ -10,6 +10,28 @@ The goal is not to automate diligence. The goal is to speed up the first pass th
 
 ## How To Run
 
+The opt-in voice feature (M0–M3) adds a React conversation UI, synthetic read-only
+gateway and local session/evidence API. Try the scripted demo with Node 22.12+ and
+pnpm, without credentials or microphone access:
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm voice:mock
+```
+
+Open `http://127.0.0.1:5173`, select a scenario and choose **Start mock demo**.
+Verification is explicitly simulated in this mode. See [setup and security boundaries](docs/voice-agent-setup.md),
+[demo scenarios](docs/voice-demo-script.md) and [M3 results and limitations](docs/voice-m3-report.md).
+`pnpm voice:test` runs credential-free API/UI tests; `pnpm voice:test:e2e` runs
+mocked browser acceptance tests after installing Playwright Chromium. The API
+contract tests also need the Python environment below. Live provider wiring and
+spoken acceptance remain M4 work. Existing Streamlit workflows follow below.
+
+M4's [local preparation and approval package](docs/voice-m4-approval.md) is ready
+for review: an inactive, expiring MCP ingress guard, sandbox agent templates and
+synthetic acceptance cases. No tunnel or external agent setup has been activated;
+see [actual M4 preparation results](docs/voice-m4-report.md).
+
 Prerequisites:
 
 - Windows PowerShell
@@ -319,7 +341,7 @@ from mcp.server.fastmcp import FastMCP
 The validated SDK dependency is pinned as:
 
 ```text
-mcp[cli]==1.29.0
+mcp[cli]==1.30.0
 ```
 
 The MCP layer turns the app's reliable internal capabilities into callable tools:

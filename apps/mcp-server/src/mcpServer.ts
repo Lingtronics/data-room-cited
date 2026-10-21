@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { infer as Infer } from "zod/v4";
 
 import { McpServer, ResourceTemplate, type CallToolResult } from "@modelcontextprotocol/server";
 
@@ -22,6 +23,8 @@ import {
   type ApiEnvelope,
 } from "./schemas.js";
 import { withSpan } from "./telemetry.js";
+import { VoicePolicy, assertLoopbackUrl } from "./voicePolicy.js";
+import { VoiceSearchInputSchema, VoiceVerifyInputSchema } from "./schemas.js";
 
 export type DataRoomMcpServerOptions = {
   ragCoreBaseUrl: string;
@@ -29,6 +32,7 @@ export type DataRoomMcpServerOptions = {
   accessContext?: AccessContext;
   approvalRequired?: boolean;
   correlationId?: string;
+  voicePolicy?: VoicePolicy;
 };
 
 export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpServer {
@@ -46,7 +50,13 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
       allowedDocumentIds: [],
       approvalGrants: [],
     } satisfies AccessContext);
-  const client = new RagCoreClient(options.ragCoreBaseUrl, correlationId, accessContext);
+  const voice = options.voicePolicy;
+  if (voice) {
+    voice.assertAccess(accessContext);
+    voice.assertFixture();
+    assertLoopbackUrl(options.ragCoreBaseUrl);
+  }
+  const client = new RagCoreClient(options.ragCoreBaseUrl, correlationId, accessContext, !!voice);
   const server = new McpServer(
     {
       name: "data-room-cited-typescript-gateway",
@@ -63,7 +73,7 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
     {
       title: "Search Data Room",
       description: "Search trusted Python retrieval results through the FastAPI RAG core.",
-      inputSchema: SearchDataRoomInputSchema,
+      inputSchema: voice ? VoiceSearchInputSchema : SearchDataRoomInputSchema,
       outputSchema: ToolEnvelopeSchema,
       annotations: {
         readOnlyHint: true,
@@ -71,9 +81,12 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
         idempotentHint: true,
       },
     },
-    async input =>
+    async (input: Infer<typeof SearchDataRoomInputSchema>) =>
       withToolPolicy(correlationId, accessContext, "search_data_room", "documents:read", () =>
-        client.searchDataRoom(input),
+        voice
+          ? voice.read("search_data_room", input, client, accessContext, correlationId, () =>
+            client.searchDataRoom({ ...input, semantic: false, top_k: input.top_k ?? 5 }))
+          : client.searchDataRoom(input),
       ),
   );
 
@@ -82,7 +95,7 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
     {
       title: "Verify Citation",
       description: "Verify that a quote appears in the original source text for a chunk.",
-      inputSchema: VerifyCitationInputSchema,
+      inputSchema: voice ? VoiceVerifyInputSchema : VerifyCitationInputSchema,
       outputSchema: ToolEnvelopeSchema,
       annotations: {
         readOnlyHint: true,
@@ -92,9 +105,15 @@ export function createDataRoomMcpServer(options: DataRoomMcpServerOptions): McpS
     },
     async input =>
       withToolPolicy(correlationId, accessContext, "verify_citation", "citations:verify", () =>
-        client.verifyCitation(input),
+        voice
+          ? voice.read("verify_citation", input, client, accessContext, correlationId, () => client.verifyCitation(input))
+          : client.verifyCitation(input),
       ),
   );
+
+  // Voice allowlist is registration-based: absent tools/resources/prompts cannot
+  // be invoked even with a changed provider approval setting.
+  if (voice) return server;
 
   server.registerTool(
     "find_supporting_evidence",
