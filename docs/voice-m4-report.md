@@ -149,3 +149,11 @@ target details**, followed by the already approved external M4 trial. Do not
 advance to a completed-M4 claim or deploy on the basis of local
 tests alone. Official SDK, MCP, authentication, privacy, ngrok and current testing
 references are linked in the [approval package](voice-m4-approval.md).
+
+
+## Subsequent CI validation — 21 October 2026
+
+The original Linux/Node 22 and container workflows subsequently passed after the
+package-age window. Dependency security repairs, additional compatibility tests
+and their actual results are recorded in the [CI follow-up report](voice-ci-repair-report.md).
+M4 live acceptance remains incomplete.

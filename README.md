@@ -341,7 +341,7 @@ from mcp.server.fastmcp import FastMCP
 The validated SDK dependency is pinned as:
 
 ```text
-mcp[cli]==1.29.0
+mcp[cli]==1.30.0
 ```
 
 The MCP layer turns the app's reliable internal capabilities into callable tools:

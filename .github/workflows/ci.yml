@@ -30,7 +30,6 @@ jobs:
       - name: Release gate fixture
         run: python scripts/evaluate_release_gate.py --fixture --skip-external-gates
       - name: Python dependency scan
-        continue-on-error: true
         run: |
           pip install pip-audit
           pip-audit -r requirements.txt
@@ -74,7 +73,6 @@ jobs:
       - name: Voice browser acceptance tests (mocked services and microphone)
         run: pnpm voice:test:e2e
       - name: Node dependency scan
-        continue-on-error: true
         run: pnpm audit --audit-level high
 
   containers:

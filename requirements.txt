@@ -2,13 +2,14 @@ pdfplumber
 pydantic
 numpy
 python-dotenv
-streamlit
+streamlit>=1.66.1,<2
+Pillow>=13.0.0,<14
 boto3
 fastapi
 uvicorn
 openai
 sentence-transformers
-mcp[cli]==1.29.0
+mcp[cli]==1.30.0
 networkx
 opentelemetry-api
 opentelemetry-sdk
